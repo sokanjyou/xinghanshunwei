@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="星瀚顺为 AI 工业数字化与 AI 赋能门户，展示 ERP、MOM/MES、PLM、WMS、SRM、EAM、QMS 等全流程系统集成能力。" />
+  <title>工业 AI 门户 | 星瀚顺为 AI</title>
+  <link rel="stylesheet" href="../assets/css/style.css" />
+</head>
+<body class="industrial-page">
+  <header class="site-header">
+    <a class="logo" href="../" aria-label="星瀚顺为 AI 首页">星瀚顺为 AI</a>
+    <nav class="site-nav" aria-label="主导航">
+      <a href="../">首页</a>
+      <a href="../about/">关于我们</a>
+      <a href="../services/">核心能力</a>
+      <a href="../contact/">联系我们</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="industrial-hero" data-parallax>
+      <canvas class="particle-field" aria-hidden="true"></canvas>
+      <div class="industrial-hero-copy">
+        <p class="eyebrow">Modern Industrial Cyber Portal</p>
+        <h1>制造业全流程系统集成，与 AI 智慧大脑同频运行</h1>
+        <p>
+          面向高端制造数字化转型，星瀚顺为 AI 打通 PLM、ERP、MOM/MES、WMS、SRM、EAM、QMS 等核心系统，
+          并通过计算机视觉、预测性维护与大模型辅助决策，为传统工业系统注入可演进的智能能力。
+        </p>
+        <div class="hero-buttons">
+          <a href="#topology" class="btn tactile-btn">查看系统拓扑</a>
+          <a href="#ai-core" class="btn secondary tactile-btn">探索 AI 赋能</a>
+        </div>
+      </div>
+
+      <div class="factory-orbit" aria-label="3D 工业管线示意">
+        <div class="orbit-ring ring-one"></div>
+        <div class="orbit-ring ring-two"></div>
+        <div class="factory-stage">
+          <div class="factory-core"></div>
+          <div class="factory-tower tower-a"></div>
+          <div class="factory-tower tower-b"></div>
+          <div class="factory-tower tower-c"></div>
+          <div class="pipe pipe-one"></div>
+          <div class="pipe pipe-two"></div>
+          <div class="pipe pipe-three"></div>
+          <div class="data-beam"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mission-grid section">
+      <article class="mission-card tactile-card reveal-on-scroll">
+        <span class="card-kicker">Objective 01</span>
+        <h2>秀肌肉：全流程系统打通与集成</h2>
+        <p>
+          以制造现场、计划排产、供应协同、设备资产、质量追溯和仓储物流为核心对象，
+          构建跨 ERP、MOM/MES、PLM、WMS、SRM、EAM、QMS 的统一业务链路。
+        </p>
+      </article>
+      <article class="mission-card tactile-card reveal-on-scroll">
+        <span class="card-kicker">Objective 02</span>
+        <h2>展未来：AI 算法成为工业智慧大脑</h2>
+        <p>
+          将计算机视觉、预测性维护、异常检测、工业知识库与大模型辅助决策嵌入关键节点，
+          让系统从“记录流程”升级为“感知、判断、预测、优化”。
+        </p>
+      </article>
+    </section>
+
+    <section id="topology" class="topology-section">
+      <div class="section-heading">
+        <p class="eyebrow">Interactive Topology</p>
+        <h2>工业全流程系统拓扑图</h2>
+        <p>从产品设计源头到生产管控、供应链协同、设备保障和质量闭环，形成一张可扩展的工业数据网络。</p>
+      </div>
+
+      <div class="topology-map reveal-on-scroll" aria-label="工业系统互动拓扑图">
+        <svg class="topology-lines" viewBox="0 0 1000 540" aria-hidden="true">
+          <path d="M500 270 L180 120" />
+          <path d="M500 270 L385 90" />
+          <path d="M500 270 L620 92" />
+          <path d="M500 270 L820 132" />
+          <path d="M500 270 L820 410" />
+          <path d="M500 270 L500 475" />
+          <path d="M500 270 L178 420" />
+          <path class="pulse-line" d="M180 120 C330 190 350 320 178 420" />
+          <path class="pulse-line" d="M385 90 C540 150 665 180 820 132" />
+          <path class="pulse-line" d="M620 92 C650 250 660 330 820 410" />
+        </svg>
+
+        <div class="topology-node core tactile-card" style="--x: 50%; --y: 50%;">
+          <span>AI Brain</span>
+          <strong>工业智慧大脑</strong>
+        </div>
+        <button class="topology-node tactile-card" style="--x: 18%; --y: 22%;" data-system="plm">
+          <span>PLM</span>
+          <strong>设计 / 源头</strong>
+        </button>
+        <button class="topology-node tactile-card" style="--x: 38%; --y: 16%;" data-system="erp">
+          <span>ERP</span>
+          <strong>企业资源计划</strong>
+        </button>
+        <button class="topology-node tactile-card" style="--x: 62%; --y: 16%;" data-system="mes">
+          <span>MOM / MES</span>
+          <strong>制造运营管理</strong>
+        </button>
+        <button class="topology-node tactile-card" style="--x: 82%; --y: 24%;" data-system="wms">
+          <span>WMS</span>
+          <strong>智能仓储</strong>
+        </button>
+        <button class="topology-node tactile-card" style="--x: 82%; --y: 76%;" data-system="srm">
+          <span>SRM</span>
+          <strong>供应商协作</strong>
+        </button>
+        <button class="topology-node tactile-card" style="--x: 50%; --y: 86%;" data-system="eam">
+          <span>EAM</span>
+          <strong>设备资产保障</strong>
+        </button>
+        <button class="topology-node tactile-card" style="--x: 18%; --y: 78%;" data-system="qms">
+          <span>QMS</span>
+          <strong>质量管理闭环</strong>
+        </button>
+      </div>
+    </section>
+
+    <section id="ai-core" class="ai-core-section">
+      <div class="section-heading">
+        <p class="eyebrow">AI Enablement</p>
+        <h2>AI 算法赋予工业系统智慧大脑</h2>
+      </div>
+
+      <div class="ai-modules">
+        <article class="ai-module tactile-card reveal-on-scroll">
+          <span class="module-icon">CV</span>
+          <h3>计算机视觉质检</h3>
+          <p>对生产线图像、视频与工位状态进行识别，支持缺陷检测、工序校验、人员安全与质量追溯。</p>
+        </article>
+        <article class="ai-module tactile-card reveal-on-scroll">
+          <span class="module-icon">PM</span>
+          <h3>预测性维护</h3>
+          <p>融合设备状态、工单、传感器与历史故障数据，提前识别异常趋势，减少计划外停机。</p>
+        </article>
+        <article class="ai-module tactile-card reveal-on-scroll">
+          <span class="module-icon">LLM</span>
+          <h3>大模型辅助决策</h3>
+          <p>连接知识库、业务系统与现场数据，辅助计划排程、库存策略、异常处置和经营分析。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="metric-ribbon">
+      <div class="metric" data-count="7">
+        <strong>0</strong>
+        <span>核心工业系统</span>
+      </div>
+      <div class="metric" data-count="24">
+        <strong>0</strong>
+        <span>关键业务节点</span>
+      </div>
+      <div class="metric" data-count="360">
+        <strong>0</strong>
+        <span>全域数据视角</span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    © 2026 星瀚顺为 AI. All Rights Reserved.
+  </footer>
+
+  <script src="../assets/js/industrial-ai.js"></script>
+</body>
+</html>
