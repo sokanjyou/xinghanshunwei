@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>星瀚顺为 AI | 公司介绍</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+      background: #08111f;
+      color: #ffffff;
+      line-height: 1.6;
+    }
+
+    header {
+      padding: 24px 8%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(8, 17, 31, 0.9);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(10px);
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: #7dd3fc;
+    }
+
+    nav a {
+      color: #cbd5e1;
+      text-decoration: none;
+      margin-left: 24px;
+      font-size: 14px;
+    }
+
+    nav a:hover {
+      color: #7dd3fc;
+    }
+
+    .hero {
+      min-height: 80vh;
+      padding: 100px 8%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background:
+        radial-gradient(circle at 80% 20%, rgba(56, 189, 248, 0.25), transparent 30%),
+        radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.25), transparent 30%);
+    }
+
+    .hero h1 {
+      font-size: 56px;
+      line-height: 1.2;
+      max-width: 760px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 span {
+      color: #7dd3fc;
+    }
+
+    .hero p {
+      max-width: 680px;
+      color: #cbd5e1;
+      font-size: 18px;
+      margin-bottom: 36px;
+    }
+
+    .btn {
+      display: inline-block;
+      width: fit-content;
+      padding: 14px 28px;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 999px;
+      font-weight: bold;
+      box-shadow: 0 10px 30px rgba(56, 189, 248, 0.3);
+    }
+
+    section {
+      padding: 80px 8%;
+    }
+
+    .section-title {
+      font-size: 34px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .section-desc {
+      text-align: center;
+      color: #94a3b8;
+      max-width: 720px;
+      margin: 0 auto 48px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(125, 211, 252, 0.15);
+      border-radius: 20px;
+      padding: 32px;
+      transition: 0.3s;
+    }
+
+    .card:hover {
+      transform: translateY(-8px);
+      border-color: #38bdf8;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.6);
+    }
+
+    .card h3 {
+      color: #7dd3fc;
+      margin-bottom: 12px;
+      font-size: 22px;
+    }
+
+    .card p {
+      color: #cbd5e1;
+      font-size: 15px;
+    }
+
+    .about {
+      background: #0f172a;
+      border-top: 1px solid rgba(148, 163, 184, 0.15);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    }
+
+    .about-box {
+      max-width: 900px;
+      margin: auto;
+      background: rgba(8, 17, 31, 0.8);
+      border-radius: 24px;
+      padding: 40px;
+      border: 1px solid rgba(125, 211, 252, 0.15);
+    }
+
+    .about-box p {
+      color: #cbd5e1;
+      margin-bottom: 16px;
+    }
+
+    .contact {
+      text-align: center;
+    }
+
+    .contact p {
+      color: #94a3b8;
+      margin-bottom: 24px;
+    }
+
+    footer {
+      padding: 28px 8%;
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+      border-top: 1px solid rgba(148, 163, 184, 0.15);
+    }
+
+    @media (max-width: 768px) {
+      header {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      nav a {
+        margin: 0 8px;
+      }
+
+      .hero h1 {
+        font-size: 38px;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">星瀚顺为 AI</div>
+    <nav>
+      <a href="#about">关于我们</a>
+      <a href="#services">核心能力</a>
+      <a href="#contact">联系我们</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>以智能算法连接<span>星瀚未来</span></h1>
+      <p>
+        星瀚顺为 AI 专注于人工智能技术研发与行业应用落地，
+        致力于为企业提供高效、可靠、可扩展的智能化解决方案。
+      </p>
+      <a href="#services" class="btn">了解我们的能力</a>
+    </section>
+
+    <section id="about" class="about">
+      <h2 class="section-title">关于星瀚顺为 AI</h2>
+      <p class="section-desc">
+        我们相信，AI 不只是工具，更是推动产业升级与组织进化的新型基础设施。
+      </p>
+
+      <div class="about-box">
+        <p>
+          星瀚顺为 AI 是一家面向未来的人工智能技术公司，聚焦机器学习、计算机视觉、
+          自然语言处理、数据智能与自动化系统开发。
+        </p>
+        <p>
+          公司以“顺势而为，智启星瀚”为理念，帮助客户从复杂数据中发现价值，
+          从重复流程中释放效率，从传统业务中构建新的增长引擎。
+        </p>
+      </div>
+    </section>
+
+    <section id="services">
+      <h2 class="section-title">核心能力</h2>
+      <p class="section-desc">
+        从算法研发到系统部署，我们提供覆盖 AI 项目全流程的技术支持。
+      </p>
+
+      <div class="cards">
+        <div class="card">
+          <h3>智能算法研发</h3>
+          <p>
+            提供机器学习、深度学习、预测分析、推荐系统等算法模型设计与优化服务。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>计算机视觉应用</h3>
+          <p>
+            支持图像识别、目标检测、姿态估计、视频分析等视觉智能解决方案。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>企业 AI 系统集成</h3>
+          <p>
+            将 AI 能力嵌入企业业务流程，构建自动化、智能化、可持续迭代的应用系统。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="contact">
+      <h2 class="section-title">联系我们</h2>
+      <p>
+        欢迎与星瀚顺为 AI 一起探索智能时代的更多可能。
+      </p>
+      <a href="mailto:contact@example.com" class="btn">发送邮件</a>
+    </section>
+  </main>
+
+  <footer>
+    © 2026 星瀚顺为 AI. All Rights Reserved.
+  </footer>
+
+</body>
+</html>
