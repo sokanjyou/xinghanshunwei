@@ -244,7 +244,7 @@ export async function onRequestPost(context) {
   const configuredSystemPrompt = env.MINICPM_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT;
 
   const miniCpmBody = {
-    model: env.MINICPM_MODEL || "MiniCPM-V-4.6-Thinking",
+    model: env.MINICPM_MODEL || "MiniCPM-o-4.5",
     messages: [
       { role: "system", content: `${configuredSystemPrompt}\n${IDENTITY_POLICY}` },
       ...messages

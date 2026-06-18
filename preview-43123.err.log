@@ -21,3 +21,7 @@
 127.0.0.1 - - [19/Jun/2026 06:17:15] "GET /chat/ HTTP/1.1" 200 -
 127.0.0.1 - - [19/Jun/2026 06:17:15] "GET /assets/css/style.css HTTP/1.1" 200 -
 127.0.0.1 - - [19/Jun/2026 06:17:15] "GET /assets/js/chat.js?v=minicpm-v4.6-10 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:36:16] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:37:20] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:37:20] "GET /assets/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:37:20] "GET /assets/js/chat.js?v=minicpm-o4.5-realtime-1 HTTP/1.1" 200 -
