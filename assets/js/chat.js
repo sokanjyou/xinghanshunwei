@@ -9,9 +9,10 @@
   const mediaInput = document.querySelector("#chat-media-input");
   const attachmentList = document.querySelector("#chat-attachments");
   const voiceButton = document.querySelector("#chat-voice-button");
+  const voiceButtonLabel = voiceButton && voiceButton.querySelector(".chat-tool-label");
 
   if (!form || !input || !log || !status || !submit || !clear
-    || !mediaButton || !mediaInput || !attachmentList || !voiceButton) return;
+    || !mediaButton || !mediaInput || !attachmentList || !voiceButton || !voiceButtonLabel) return;
 
   const messages = [];
   const attachments = [];
@@ -19,7 +20,6 @@
   let controller = null;
   let recognition = null;
   let isRecording = false;
-  let voiceReplyPending = false;
 
   const scrollToBottom = () => {
     log.scrollTop = log.scrollHeight;
@@ -32,7 +32,7 @@
 
   const stripStars = (text) => String(text || "").replace(/\*/g, "").trim();
 
-  const appendMessage = (role, text) => {
+  const appendMessage = (role, text, imageUrls = []) => {
     const article = document.createElement("article");
     article.className = `chat-message ${role}`;
 
@@ -42,7 +42,25 @@
 
     const bubble = document.createElement("div");
     bubble.className = "chat-bubble";
-    bubble.textContent = role === "assistant" ? stripStars(text) : text;
+    const messageText = role === "assistant" ? stripStars(text) : text;
+    if (messageText) {
+      const textBlock = document.createElement("div");
+      textBlock.className = "chat-message-text";
+      textBlock.textContent = messageText;
+      bubble.append(textBlock);
+    }
+
+    if (imageUrls.length) {
+      const imageGrid = document.createElement("div");
+      imageGrid.className = "chat-message-images";
+      imageUrls.forEach((url) => {
+        const thumbnail = document.createElement("img");
+        thumbnail.src = url;
+        thumbnail.alt = "用户上传的图片";
+        imageGrid.append(thumbnail);
+      });
+      bubble.append(imageGrid);
+    }
 
     article.append(avatar, bubble);
     log.append(article);
@@ -74,26 +92,14 @@
       preview.src = item.urls[0];
       preview.alt = item.name;
 
-      const details = document.createElement("div");
-      details.className = "chat-attachment-details";
-
-      const name = document.createElement("span");
-      name.className = "chat-attachment-name";
-      name.textContent = item.name;
-
-      const type = document.createElement("span");
-      type.className = "chat-attachment-type";
-      type.textContent = "图片";
-
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "chat-attachment-remove";
       remove.dataset.index = String(index);
       remove.setAttribute("aria-label", `移除 ${item.name}`);
-      remove.textContent = "移除";
+      remove.textContent = "×";
 
-      details.append(name, type);
-      card.append(preview, details, remove);
+      card.append(preview, remove);
       attachmentList.append(card);
     });
   };
@@ -165,16 +171,7 @@
     }
   };
 
-  const speak = (text) => {
-    if (!("speechSynthesis" in window) || !text) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "zh-CN";
-    utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const ask = async (requestContent, historyContent, shouldSpeak) => {
+  const ask = async (requestContent, historyContent) => {
     controller = new AbortController();
     const response = await fetch("/api/chat", {
       method: "POST",
@@ -211,8 +208,6 @@
     messages.push({ role: "user", content: historyContent });
     messages.push({ role: "assistant", content: assistantContent });
     while (messages.length > 12) messages.shift();
-
-    if (shouldSpeak) speak(assistantContent);
   };
 
   const stopRecognition = () => {
@@ -241,7 +236,7 @@
       isRecording = true;
       voiceButton.classList.add("is-recording");
       voiceButton.setAttribute("aria-pressed", "true");
-      voiceButton.textContent = "停止录音";
+      voiceButtonLabel.textContent = "停止录音";
       setStatus("正在聆听，请开始说话");
     };
 
@@ -254,7 +249,6 @@
       }
       input.value = `${existingText}${existingText && transcript ? " " : ""}${transcript}`;
       if (isFinal) {
-        voiceReplyPending = true;
         setStatus("语音已转写，请确认后发送");
       }
     };
@@ -268,7 +262,7 @@
       isRecording = false;
       voiceButton.classList.remove("is-recording");
       voiceButton.setAttribute("aria-pressed", "false");
-      voiceButton.textContent = "语音";
+      voiceButtonLabel.textContent = "语音输入";
       input.focus();
     };
 
@@ -285,9 +279,7 @@
     }
 
     const prompt = typedContent || "请分析我上传的内容。";
-    const attachmentLabels = attachments.map((item) => `[图片：${item.name}]`);
-    const displayContent = [prompt, ...attachmentLabels].join("\n");
-    const historyContent = [prompt, ...attachmentLabels].join(" ");
+    const historyContent = prompt;
     const mediaParts = attachments.flatMap((item) => item.urls.map((url) => ({
       type: "image_url",
       image_url: { url }
@@ -295,18 +287,17 @@
     const requestContent = mediaParts.length
       ? [{ type: "text", text: prompt }, ...mediaParts]
       : prompt;
-    const shouldSpeak = voiceReplyPending;
+    const displayImages = attachments.flatMap((item) => item.urls);
 
-    appendMessage("user", displayContent);
+    appendMessage("user", prompt, displayImages);
     input.value = "";
     setBusy(true);
     setStatus("正在生成");
 
     try {
-      await ask(requestContent, historyContent, shouldSpeak);
+      await ask(requestContent, historyContent);
       attachments.length = 0;
       renderAttachments();
-      voiceReplyPending = false;
       setStatus("已连接");
     } catch (error) {
       appendMessage("assistant", error.message || "AI 服务暂时不可用，请稍后再试。");
@@ -341,10 +332,8 @@
   clear.addEventListener("click", () => {
     controller?.abort();
     stopRecognition();
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     messages.length = 0;
     attachments.length = 0;
-    voiceReplyPending = false;
     input.value = "";
     renderAttachments();
     log.innerHTML = "";

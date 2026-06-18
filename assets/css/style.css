@@ -2257,6 +2257,22 @@ a {
   white-space: pre-wrap;
 }
 
+.chat-message-images {
+  display: grid;
+  grid-template-columns: repeat(3, 84px);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chat-message-images img {
+  width: 84px;
+  height: 84px;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  border-radius: 7px;
+  background: rgba(2, 6, 23, 0.72);
+  object-fit: cover;
+}
+
 .chat-form {
   display: grid;
   gap: 14px;
@@ -2267,60 +2283,50 @@ a {
 
 .chat-attachments {
   display: none;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  flex-wrap: wrap;
   gap: 10px;
 }
 
 .chat-attachments.has-items {
-  display: grid;
+  display: flex;
 }
 
 .chat-attachment {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  min-width: 0;
-  padding: 8px;
-  border: 1px solid rgba(125, 211, 252, 0.2);
+  position: relative;
+  width: 68px;
+  height: 68px;
+  padding: 0;
+  border: 1px solid rgba(125, 211, 252, 0.3);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.78);
+  background: rgba(2, 6, 23, 0.78);
+  box-shadow: 0 8px 22px rgba(2, 8, 23, 0.34);
 }
 
 .chat-attachment img {
-  width: 52px;
-  height: 52px;
-  border-radius: 6px;
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
   object-fit: cover;
 }
 
-.chat-attachment-details {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.chat-attachment-name {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-attachment-type {
-  color: var(--muted);
-  font-size: 11px;
-}
-
 .chat-attachment-remove {
-  border: 0;
-  background: transparent;
-  color: #fca5a5;
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  border-radius: 50%;
+  background: #1b0b12;
+  color: #fecaca;
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: 0 5px 14px rgba(2, 8, 23, 0.52);
 }
 
 .chat-form textarea {
@@ -2361,28 +2367,76 @@ a {
 }
 
 .chat-tool {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
   min-height: 42px;
-  padding: 0 14px;
-  border: 1px solid rgba(125, 211, 252, 0.24);
+  padding: 0 16px;
+  border: 1px solid rgba(125, 211, 252, 0.34);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.76);
-  color: #cbd5e1;
+  background: linear-gradient(145deg, rgba(15, 31, 52, 0.96), rgba(5, 12, 25, 0.96));
+  color: #dbeafe;
   cursor: pointer;
   font: inherit;
   font-size: 13px;
   font-weight: 800;
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 22px rgba(2, 8, 23, 0.28);
+  transition: border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.chat-tool::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.12;
+  background: linear-gradient(110deg, transparent 12%, currentColor 50%, transparent 88%);
+  content: "";
+  transform: translateX(-72%);
+  transition: opacity 0.2s ease, transform 0.35s ease;
+}
+
+.chat-tool svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+#chat-media-button {
+  border-color: rgba(56, 189, 248, 0.42);
+  color: #7dd3fc;
+}
+
+#chat-voice-button {
+  border-color: rgba(0, 255, 184, 0.36);
+  color: #8cffdf;
 }
 
 .chat-tool:hover {
-  border-color: rgba(0, 255, 184, 0.48);
-  color: #8cffdf;
+  border-color: currentColor;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 10px 28px rgba(14, 165, 233, 0.18);
+  transform: translateY(-1px);
+}
+
+.chat-tool:hover::before {
+  opacity: 0.2;
+  transform: translateX(72%);
 }
 
 .chat-tool.is-recording {
   border-color: rgba(248, 113, 113, 0.7);
   background: rgba(127, 29, 29, 0.35);
   color: #fecaca;
+  box-shadow: 0 0 22px rgba(248, 113, 113, 0.16);
 }
 
 .chat-tool:disabled {
@@ -2541,6 +2595,17 @@ a {
 
   .chat-tool {
     width: 100%;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .chat-message-images {
+    grid-template-columns: repeat(3, 70px);
+  }
+
+  .chat-message-images img {
+    width: 70px;
+    height: 70px;
   }
 
   .chat-actions .btn {
