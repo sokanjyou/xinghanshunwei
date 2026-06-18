@@ -9,3 +9,6 @@
 127.0.0.1 - - [19/Jun/2026 05:44:46] code 404, message File not found
 127.0.0.1 - - [19/Jun/2026 05:44:46] "GET /favicon.ico HTTP/1.1" 404 -
 127.0.0.1 - - [19/Jun/2026 05:44:49] "POST /api/chat HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:50:43] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:50:43] "GET /assets/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/Jun/2026 05:50:43] "GET /assets/js/chat.js?v=minicpm-v4.6-7 HTTP/1.1" 200 -

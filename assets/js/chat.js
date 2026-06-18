@@ -17,6 +17,9 @@
   const messages = [];
   const attachments = [];
   const MAX_IMAGES = 5;
+  const CHAT_API_URL = window.location.hostname === "www.xinghanshunwei.top"
+    ? "https://xinghanshunwei.top/api/chat"
+    : "/api/chat";
   let controller = null;
   let recognition = null;
   let isRecording = false;
@@ -177,7 +180,7 @@
 
   const ask = async (requestContent, historyContent) => {
     controller = new AbortController();
-    const response = await fetch("/api/chat", {
+    const response = await fetch(CHAT_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
