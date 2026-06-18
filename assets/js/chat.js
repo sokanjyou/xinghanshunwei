@@ -57,6 +57,8 @@
         const thumbnail = document.createElement("img");
         thumbnail.src = url;
         thumbnail.alt = "用户上传的图片";
+        thumbnail.width = 200;
+        thumbnail.height = 200;
         imageGrid.append(thumbnail);
       });
       bubble.append(imageGrid);
@@ -91,6 +93,8 @@
       const preview = document.createElement("img");
       preview.src = item.urls[0];
       preview.alt = item.name;
+      preview.width = 200;
+      preview.height = 200;
 
       const remove = document.createElement("button");
       remove.type = "button";
