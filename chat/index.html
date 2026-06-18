@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="星瀚顺为 AI 实时对话入口，面向产业数字化、工业 AI、机器人和可信协同系统咨询。" />
+  <title>AI 实时对话 | 星瀚顺为 AI</title>
+  <link rel="stylesheet" href="../assets/css/style.css" />
+</head>
+<body class="chat-page">
+  <header class="site-header">
+    <a class="logo" href="../" aria-label="星瀚顺为 AI 首页">星瀚顺为 AI</a>
+    <nav class="site-nav" aria-label="主导航">
+      <a href="../">首页</a>
+      <a href="../about/">关于我们</a>
+      <a href="../contact/">联系我们</a>
+      <a href="../join/">加入我们</a>
+    </nav>
+  </header>
+
+  <main class="chat-shell">
+    <section class="chat-hero">
+      <div class="chat-copy">
+        <p class="eyebrow">Live AI Assistant</p>
+        <h1>和星瀚顺为 AI 助手实时交流</h1>
+        <p>你好，我是您的AI助手小瀚。请开始我们的聊天吧。</p>
+      </div>
+
+      <section class="chat-console" aria-label="AI 实时对话">
+        <div class="chat-status" id="chat-status">已连接</div>
+        <div class="chat-log" id="chat-log" aria-live="polite">
+          <article class="chat-message assistant">
+            <div class="chat-avatar">AI</div>
+            <div class="chat-bubble">你好，我是星瀚顺为AI助手小瀚。很高兴认识你。</div>
+          </article>
+        </div>
+        <form class="chat-form" id="chat-form">
+          <label class="sr-only" for="chat-input">输入消息</label>
+          <textarea id="chat-input" name="message" rows="3" maxlength="1600" placeholder="请输入你的问题..." required></textarea>
+          <div class="chat-actions">
+            <button type="button" class="btn secondary" id="chat-clear">清空</button>
+            <button type="submit" class="btn" id="chat-submit">发送</button>
+          </div>
+        </form>
+      </section>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    © 2026 星瀚顺为 AI. All Rights Reserved.
+  </footer>
+
+  <script src="../assets/js/chat.js"></script>
+</body>
+</html>
