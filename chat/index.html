@@ -36,10 +36,19 @@
         </div>
         <form class="chat-form" id="chat-form">
           <label class="sr-only" for="chat-input">输入消息</label>
-          <textarea id="chat-input" name="message" rows="3" maxlength="1600" placeholder="请输入你的问题..." required></textarea>
+          <div class="chat-attachments" id="chat-attachments" aria-live="polite"></div>
+          <label class="sr-only" for="chat-media-input">选择图片</label>
+          <input class="sr-only" id="chat-media-input" type="file" accept="image/png,image/jpeg,image/webp" multiple />
+          <textarea id="chat-input" name="message" rows="3" maxlength="1600" placeholder="请输入问题，或添加图片、语音..."></textarea>
           <div class="chat-actions">
-            <button type="button" class="btn secondary" id="chat-clear">清空</button>
-            <button type="submit" class="btn" id="chat-submit">发送</button>
+            <div class="chat-tools" aria-label="多模态输入">
+              <button type="button" class="chat-tool" id="chat-media-button">图片</button>
+              <button type="button" class="chat-tool" id="chat-voice-button" aria-pressed="false">语音</button>
+            </div>
+            <div class="chat-submit-actions">
+              <button type="button" class="btn secondary" id="chat-clear">清空</button>
+              <button type="submit" class="btn" id="chat-submit">发送</button>
+            </div>
           </div>
         </form>
       </section>
@@ -50,6 +59,6 @@
     © 2026 星瀚顺为 AI. All Rights Reserved.
   </footer>
 
-  <script src="../assets/js/chat.js?v=minicpm-v4.6-1"></script>
+  <script src="../assets/js/chat.js?v=minicpm-v4.6-3"></script>
 </body>
 </html>

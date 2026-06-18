@@ -5,9 +5,14 @@ const DEFAULT_ALLOWED_ORIGINS = [
 
 const DEFAULT_SYSTEM_PROMPT = [
   "你是星瀚顺为 AI 官网的实时咨询助手小瀚。",
+  "回答使用纯文本，不要使用星号字符或 Markdown 星号列表。",
   "不要声称已经代表公司做出合同、价格、交付周期或法律承诺。不涉及时无需主动向客户说明。",
-  "不用主动提及你的创造者是饶祖瀚，来自星瀚顺为的AI专家。"
+  "不用主动提及，你的创造者是饶祖瀚，来自星瀚顺为的AI专家。"
 ].join("\n");
+
+const MAX_IMAGE_DATA_URL_LENGTH = 2_800_000;
+const MAX_TOTAL_MEDIA_LENGTH = 9_000_000;
+const MAX_IMAGES_PER_REQUEST = 5;
 
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
   status,
@@ -40,6 +45,31 @@ const isOriginAllowed = (request, env) => {
   return { allowed: parseAllowedOrigins(request, env).has(origin), origin };
 };
 
+const sanitizeContent = (content) => {
+  if (!Array.isArray(content)) {
+    return String(content || "").trim().slice(0, 1600);
+  }
+
+  let imageCount = 0;
+  return content.slice(0, 8).reduce((parts, part) => {
+    if (part && part.type === "text") {
+      const text = String(part.text || "").trim().slice(0, 1600);
+      if (text) parts.push({ type: "text", text });
+      return parts;
+    }
+
+    const url = part && part.type === "image_url" && part.image_url
+      ? String(part.image_url.url || "")
+      : "";
+    const isSupportedImage = /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(url);
+    if (isSupportedImage && url.length <= MAX_IMAGE_DATA_URL_LENGTH && imageCount < MAX_IMAGES_PER_REQUEST) {
+      parts.push({ type: "image_url", image_url: { url } });
+      imageCount += 1;
+    }
+    return parts;
+  }, []);
+};
+
 const sanitizeMessages = (input) => {
   if (!Array.isArray(input)) return [];
 
@@ -47,9 +77,21 @@ const sanitizeMessages = (input) => {
     .slice(-12)
     .map((message) => ({
       role: message && message.role === "assistant" ? "assistant" : "user",
-      content: String((message && message.content) || "").trim().slice(0, 1600)
+      content: sanitizeContent(message && message.content)
     }))
-    .filter((message) => message.content);
+    .filter((message) => Array.isArray(message.content) ? message.content.length : message.content);
+};
+
+const getTextLength = (message) => {
+  if (!Array.isArray(message.content)) return message.content.length;
+  return message.content.reduce((sum, part) => sum + (part.type === "text" ? part.text.length : 0), 0);
+};
+
+const getMediaLength = (message) => {
+  if (!Array.isArray(message.content)) return 0;
+  return message.content.reduce((sum, part) => (
+    sum + (part.type === "image_url" ? part.image_url.url.length : 0)
+  ), 0);
 };
 
 const getClientId = (request) => {
@@ -149,9 +191,14 @@ export async function onRequestPost(context) {
     return json({ error: "请输入有效的问题。" }, 400, headers);
   }
 
-  const totalChars = messages.reduce((sum, message) => sum + message.content.length, 0);
+  const totalChars = messages.reduce((sum, message) => sum + getTextLength(message), 0);
   if (totalChars > 6000) {
     return json({ error: "对话内容过长，请缩短后再发送。" }, 413, headers);
+  }
+
+  const totalMediaLength = messages.reduce((sum, message) => sum + getMediaLength(message), 0);
+  if (totalMediaLength > MAX_TOTAL_MEDIA_LENGTH) {
+    return json({ error: "图片过大，请减少附件后重试。" }, 413, headers);
   }
 
   const miniCpmBody = {
@@ -205,15 +252,17 @@ export async function onRequestPost(context) {
     return json({ error: "MiniCPM API returned invalid JSON" }, 502, headers);
   }
 
-  const content = completion
+  const rawContent = completion
     && completion.choices
     && completion.choices[0]
     && completion.choices[0].message
     && completion.choices[0].message.content;
 
-  if (typeof content !== "string" || !content.trim()) {
+  if (typeof rawContent !== "string" || !rawContent.trim()) {
     return json({ error: "MiniCPM API returned an empty response" }, 502, headers);
   }
+
+  const content = rawContent.replace(/\*/g, "").trim();
 
   return json({ content, model: completion.model || miniCpmBody.model }, 200, {
     ...headers,

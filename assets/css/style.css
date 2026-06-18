@@ -2265,6 +2265,64 @@ a {
   background: rgba(4, 8, 17, 0.72);
 }
 
+.chat-attachments {
+  display: none;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.chat-attachments.has-items {
+  display: grid;
+}
+
+.chat-attachment {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.78);
+}
+
+.chat-attachment img {
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.chat-attachment-details {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.chat-attachment-name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-attachment-type {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.chat-attachment-remove {
+  border: 0;
+  background: transparent;
+  color: #fca5a5;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
 .chat-form textarea {
   width: 100%;
   min-height: 108px;
@@ -2291,8 +2349,45 @@ a {
 
 .chat-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
+}
+
+.chat-tools,
+.chat-submit-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.chat-tool {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.76);
+  color: #cbd5e1;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.chat-tool:hover {
+  border-color: rgba(0, 255, 184, 0.48);
+  color: #8cffdf;
+}
+
+.chat-tool.is-recording {
+  border-color: rgba(248, 113, 113, 0.7);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+}
+
+.chat-tool:disabled {
+  cursor: wait;
+  opacity: 0.58;
 }
 
 .chat-actions .btn {
@@ -2434,7 +2529,18 @@ a {
   }
 
   .chat-actions {
-    flex-direction: column-reverse;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chat-tools,
+  .chat-submit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .chat-tool {
+    width: 100%;
   }
 
   .chat-actions .btn {
