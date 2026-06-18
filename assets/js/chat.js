@@ -70,7 +70,13 @@
     }
 
     const result = await response.json();
-    const bubble = appendMessage("assistant", result.content || "");
+    const assistantContent = result.content
+      || (result.choices
+        && result.choices[0]
+        && result.choices[0].message
+        && result.choices[0].message.content)
+      || "";
+    const bubble = appendMessage("assistant", assistantContent);
     scrollToBottom();
 
     const assistantText = bubble.textContent.trim();
