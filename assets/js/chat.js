@@ -23,8 +23,7 @@
   let controller = null;
   let recognition = null;
   let isRecording = false;
-  let hasMicrophonePermission = false;
-  let isRequestingMicrophone = false;
+  let isStartingRecognition = false;
   let recognitionStartTimer = null;
 
   const scrollToBottom = () => {
@@ -225,7 +224,7 @@
   };
 
   const resetVoiceButton = () => {
-    isRequestingMicrophone = false;
+    isStartingRecognition = false;
     voiceButton.disabled = false;
     voiceButton.classList.remove("is-requesting");
     if (!isRecording) {
@@ -234,72 +233,11 @@
     }
   };
 
-  const getMicrophoneErrorMessage = (error) => {
-    const name = error && error.name;
-    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-      return "麦克风权限被拒绝，请在浏览器的网站设置中允许麦克风后刷新页面。";
-    }
-    if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-      return "未检测到可用麦克风。";
-    }
-    if (name === "NotReadableError" || name === "TrackStartError") {
-      return "麦克风正被其他应用占用，请关闭占用后重试。";
-    }
-    if (name === "SecurityError" || name === "InsecureContextError") {
-      return "麦克风只能在 HTTPS 安全页面中使用。";
-    }
-    return "无法访问麦克风，请检查浏览器权限后重试。";
-  };
-
-  const requestMicrophonePermission = async () => {
-    if (!window.isSecureContext) {
-      const error = new Error("Insecure context");
-      error.name = "InsecureContextError";
-      throw error;
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      const error = new Error("Media devices unavailable");
-      error.name = "NotSupportedError";
-      throw error;
-    }
-
-    if (hasMicrophonePermission) return;
-
-    if (navigator.permissions && navigator.permissions.query) {
-      try {
-        const permission = await navigator.permissions.query({ name: "microphone" });
-        if (permission.state === "denied") {
-          const error = new Error("Microphone permission denied");
-          error.name = "NotAllowedError";
-          throw error;
-        }
-        hasMicrophonePermission = permission.state === "granted";
-      } catch (error) {
-        if (error.name === "NotAllowedError") throw error;
-        // Safari does not consistently support querying microphone permission.
-      }
-    }
-
-    if (hasMicrophonePermission) return;
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      },
-      video: false
-    });
-    stream.getTracks().forEach((track) => track.stop());
-    hasMicrophonePermission = true;
-    await new Promise((resolve) => window.setTimeout(resolve, 180));
-  };
-
   const isAppleMobileDevice = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
-    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    || (/AppleWebKit/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 
-  const startRecognition = async () => {
+  const startRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setStatus("当前浏览器不支持网页语音识别，请使用最新版 Chrome、Edge 或 Safari。", true);
@@ -311,47 +249,9 @@
       return;
     }
 
-    if (isRequestingMicrophone) return;
+    if (isStartingRecognition) return;
 
     const isAppleMobile = isAppleMobileDevice();
-
-    // Safari requires SpeechRecognition.start() to run inside a fresh user gesture.
-    // Use the first tap for microphone permission and the second tap for recognition.
-    if (isAppleMobile && !hasMicrophonePermission) {
-      isRequestingMicrophone = true;
-      voiceButton.disabled = true;
-      voiceButton.classList.add("is-requesting");
-      voiceButtonLabel.textContent = "请求权限";
-      setStatus("请允许 Safari 使用麦克风");
-
-      try {
-        await requestMicrophonePermission();
-        resetVoiceButton();
-        setStatus("麦克风权限已开启，请再次点击语音输入并开始说话");
-      } catch (error) {
-        resetVoiceButton();
-        setStatus(getMicrophoneErrorMessage(error), true);
-      }
-      return;
-    }
-
-    if (!isAppleMobile) {
-      isRequestingMicrophone = true;
-      voiceButton.disabled = true;
-      voiceButton.classList.add("is-requesting");
-      voiceButtonLabel.textContent = "请求权限";
-      setStatus("请允许浏览器使用麦克风");
-
-      try {
-        await requestMicrophonePermission();
-      } catch (error) {
-        resetVoiceButton();
-        setStatus(getMicrophoneErrorMessage(error), true);
-        return;
-      }
-
-      resetVoiceButton();
-    }
 
     recognition = new SpeechRecognition();
     recognition.lang = "zh-CN";
@@ -365,7 +265,10 @@
 
     recognition.onstart = () => {
       window.clearTimeout(recognitionStartTimer);
+      isStartingRecognition = false;
       isRecording = true;
+      voiceButton.disabled = false;
+      voiceButton.classList.remove("is-requesting");
       voiceButton.classList.add("is-recording");
       voiceButton.setAttribute("aria-pressed", "true");
       voiceButtonLabel.textContent = "停止录音";
@@ -414,10 +317,11 @@
     recognition.onerror = (event) => {
       recognitionHadError = true;
       window.clearTimeout(recognitionStartTimer);
+      resetVoiceButton();
       const messagesByError = {
         "not-allowed": "麦克风权限被拒绝，请在浏览器的网站设置中允许麦克风后刷新页面。",
         "service-not-allowed": isAppleMobile
-          ? "Safari 拒绝启动语音识别，请确认系统已开启听写功能后再次点击语音输入。"
+          ? "Safari 的语音识别服务未启用。请在 iPhone 设置的“通用 > 键盘”中开启“启用听写”，然后返回重试。"
           : "浏览器禁止使用语音识别服务，请检查网站权限。",
         "audio-capture": "无法获取麦克风音频，请确认麦克风未被其他应用占用。",
         "no-speech": "没有检测到语音，请靠近麦克风后重试。",
@@ -434,7 +338,10 @@
 
     recognition.onend = () => {
       window.clearTimeout(recognitionStartTimer);
+      isStartingRecognition = false;
       isRecording = false;
+      voiceButton.disabled = false;
+      voiceButton.classList.remove("is-requesting");
       voiceButton.classList.remove("is-recording");
       voiceButton.setAttribute("aria-pressed", "false");
       voiceButtonLabel.textContent = "语音输入";
@@ -445,8 +352,16 @@
     };
 
     try {
+      // Safari must receive start() directly in the click gesture. A getUserMedia()
+      // preflight creates a separate audio session and can leave recognition blocked.
+      isStartingRecognition = true;
+      voiceButton.disabled = true;
+      voiceButton.classList.add("is-requesting");
+      voiceButtonLabel.textContent = "正在启动";
+      setStatus(isAppleMobile ? "正在启动 Safari 语音识别" : "正在启动语音识别");
       recognitionStartTimer = window.setTimeout(() => {
-        if (!isRecording) {
+        if (isStartingRecognition) {
+          resetVoiceButton();
           setStatus("语音识别服务未启动，请更换 Chrome、Edge 或 Safari 重试。", true);
         }
       }, 6000);
