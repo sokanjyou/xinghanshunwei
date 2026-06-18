@@ -23,6 +23,8 @@
   let controller = null;
   let recognition = null;
   let isRecording = false;
+  let hasMicrophonePermission = false;
+  let isRequestingMicrophone = false;
 
   const scrollToBottom = () => {
     log.scrollTop = log.scrollHeight;
@@ -221,10 +223,81 @@
     if (recognition && isRecording) recognition.stop();
   };
 
-  const startRecognition = () => {
+  const resetVoiceButton = () => {
+    isRequestingMicrophone = false;
+    voiceButton.disabled = false;
+    voiceButton.classList.remove("is-requesting");
+    if (!isRecording) {
+      voiceButton.setAttribute("aria-pressed", "false");
+      voiceButtonLabel.textContent = "语音输入";
+    }
+  };
+
+  const getMicrophoneErrorMessage = (error) => {
+    const name = error && error.name;
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      return "麦克风权限被拒绝，请在浏览器的网站设置中允许麦克风后刷新页面。";
+    }
+    if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+      return "未检测到可用麦克风。";
+    }
+    if (name === "NotReadableError" || name === "TrackStartError") {
+      return "麦克风正被其他应用占用，请关闭占用后重试。";
+    }
+    if (name === "SecurityError" || name === "InsecureContextError") {
+      return "麦克风只能在 HTTPS 安全页面中使用。";
+    }
+    return "无法访问麦克风，请检查浏览器权限后重试。";
+  };
+
+  const requestMicrophonePermission = async () => {
+    if (!window.isSecureContext) {
+      const error = new Error("Insecure context");
+      error.name = "InsecureContextError";
+      throw error;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const error = new Error("Media devices unavailable");
+      error.name = "NotSupportedError";
+      throw error;
+    }
+
+    if (hasMicrophonePermission) return;
+
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const permission = await navigator.permissions.query({ name: "microphone" });
+        if (permission.state === "denied") {
+          const error = new Error("Microphone permission denied");
+          error.name = "NotAllowedError";
+          throw error;
+        }
+        hasMicrophonePermission = permission.state === "granted";
+      } catch (error) {
+        if (error.name === "NotAllowedError") throw error;
+        // Safari does not consistently support querying microphone permission.
+      }
+    }
+
+    if (hasMicrophonePermission) return;
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      },
+      video: false
+    });
+    stream.getTracks().forEach((track) => track.stop());
+    hasMicrophonePermission = true;
+  };
+
+  const startRecognition = async () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setStatus("当前浏览器不支持语音识别，请使用最新版 Chrome 或 Edge。", true);
+      setStatus("当前浏览器不支持网页语音识别，请使用最新版 Chrome、Edge 或 Safari。", true);
       return;
     }
 
@@ -233,10 +306,29 @@
       return;
     }
 
+    if (isRequestingMicrophone) return;
+
+    isRequestingMicrophone = true;
+    voiceButton.disabled = true;
+    voiceButton.classList.add("is-requesting");
+    voiceButtonLabel.textContent = "请求权限";
+    setStatus("请允许浏览器使用麦克风");
+
+    try {
+      await requestMicrophonePermission();
+    } catch (error) {
+      resetVoiceButton();
+      setStatus(getMicrophoneErrorMessage(error), true);
+      return;
+    }
+
+    resetVoiceButton();
+
     recognition = new SpeechRecognition();
     recognition.lang = "zh-CN";
     recognition.interimResults = true;
     recognition.continuous = false;
+    recognition.maxAlternatives = 1;
     const existingText = input.value.trim();
 
     recognition.onstart = () => {
@@ -261,8 +353,15 @@
     };
 
     recognition.onerror = (event) => {
-      const permissionDenied = event.error === "not-allowed" || event.error === "service-not-allowed";
-      setStatus(permissionDenied ? "未获得麦克风权限。" : "语音识别失败，请重试。", true);
+      const messagesByError = {
+        "not-allowed": "麦克风权限被拒绝，请在浏览器的网站设置中允许麦克风后刷新页面。",
+        "service-not-allowed": "浏览器禁止使用语音识别服务，请检查网站权限。",
+        "audio-capture": "无法获取麦克风音频，请确认麦克风未被其他应用占用。",
+        "no-speech": "没有检测到语音，请靠近麦克风后重试。",
+        "network": "语音识别服务连接失败，请检查网络后重试。",
+        "language-not-supported": "当前浏览器不支持中文语音识别。"
+      };
+      setStatus(messagesByError[event.error] || "语音识别失败，请重试。", true);
     };
 
     recognition.onend = () => {
@@ -270,10 +369,15 @@
       voiceButton.classList.remove("is-recording");
       voiceButton.setAttribute("aria-pressed", "false");
       voiceButtonLabel.textContent = "语音输入";
-      input.focus();
+      if (!window.matchMedia("(pointer: coarse)").matches) input.focus();
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (error) {
+      resetVoiceButton();
+      setStatus("语音识别启动失败，请刷新页面后重试。", true);
+    }
   };
 
   form.addEventListener("submit", async (event) => {
