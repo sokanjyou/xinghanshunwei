@@ -50,7 +50,12 @@
     status.classList.toggle("is-error", Boolean(isError));
   };
 
-  const stripStars = (text) => String(text || "").replace(/\*/g, "").trim();
+  const cleanAssistantText = (text) => String(text || "")
+    .replace(/<think\b[^>]*>[\s\S]*?<\/think\s*>/gi, "")
+    .replace(/<think\b[^>]*>[\s\S]*$/gi, "")
+    .replace(/<\/?think\b[^>]*>/gi, "")
+    .replace(/\*/g, "")
+    .trim();
 
   const appendMessage = (role, text, imageUrls = []) => {
     const article = document.createElement("article");
@@ -62,7 +67,7 @@
 
     const bubble = document.createElement("div");
     bubble.className = "chat-bubble";
-    const messageText = role === "assistant" ? stripStars(text) : text;
+    const messageText = role === "assistant" ? cleanAssistantText(text) : text;
     if (messageText) {
       const textBlock = document.createElement("div");
       textBlock.className = "chat-message-text";
@@ -220,7 +225,7 @@
     }
 
     const result = await response.json();
-    const assistantContent = stripStars(result.content
+    const assistantContent = cleanAssistantText(result.content
       || (result.choices
         && result.choices[0]
         && result.choices[0].message
@@ -276,7 +281,9 @@
       textBlock.className = "chat-message-text";
       realtimeBubble.append(textBlock);
     }
-    textBlock.textContent += String(event.text || "").replace(/\*/g, "");
+    const rawText = `${textBlock.dataset.rawText || ""}${String(event.text || "")}`;
+    textBlock.dataset.rawText = rawText;
+    textBlock.textContent = cleanAssistantText(rawText);
     scrollToBottom();
   };
 
