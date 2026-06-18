@@ -145,10 +145,13 @@
         if (point.y > cssHeight + 12) point.y = -12;
 
         const color = point.tone > 0.65 ? "0, 255, 184" : point.tone > 0.32 ? "125, 211, 252" : "168, 85, 247";
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(${color}, ${0.42 + point.depth * 0.34})`;
-        ctx.arc(point.x, point.y, point.r * point.depth, 0, Math.PI * 2);
-        ctx.fill();
+        // Keep the top edge clean and avoid isolated high-contrast specks above the hero copy.
+        if (point.y >= 72) {
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(${color}, ${0.3 + point.depth * 0.22})`;
+          ctx.arc(point.x, point.y, point.r * point.depth, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
         for (let i = index + 1; i < points.length; i += 1) {
           const other = points[i];
