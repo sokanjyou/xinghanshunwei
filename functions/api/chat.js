@@ -84,6 +84,39 @@ const enforceRateLimit = async (request, env) => {
   return { allowed: true };
 };
 
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const getModelCandidates = (env) => {
+  const primary = env.GEMINI_MODEL || "gemini-3.1-flash-lite";
+  const fallbacks = (env.GEMINI_FALLBACK_MODELS || "gemini-3-flash-preview,gemini-2.5-flash")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
+
+  return [...new Set([primary, ...fallbacks])].slice(0, 3);
+};
+
+const requestGemini = (env, model, body) => fetch(
+  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": env.GEMINI_API_KEY
+    },
+    body: JSON.stringify(body)
+  }
+);
+
+const readGeminiError = async (response) => {
+  try {
+    const error = await response.json();
+    return error.error && error.error.message ? error.error.message : "Gemini API request failed";
+  } catch (_) {
+    return await response.text() || "Gemini API request failed";
+  }
+};
+
 export async function onRequestOptions(context) {
   const { request, env } = context;
   const { allowed, origin } = isOriginAllowed(request, env);
@@ -129,41 +162,55 @@ export async function onRequestPost(context) {
     return json({ error: "对话内容过长，请缩短后再发送。" }, 413, headers);
   }
 
-  const model = env.GEMINI_MODEL || "gemini-3.5-flash";
   const contents = messages.map((message) => ({
     role: message.role === "assistant" ? "model" : "user",
     parts: [{ text: message.content }]
   }));
 
-  const upstream = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": env.GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: env.GEMINI_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }]
-        },
-        contents,
-        generationConfig: {
-          maxOutputTokens: Number(env.GEMINI_MAX_OUTPUT_TOKENS || 1200)
-        }
-      })
+  const geminiBody = {
+    system_instruction: {
+      parts: [{ text: env.GEMINI_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }]
+    },
+    contents,
+    generationConfig: {
+      maxOutputTokens: Number(env.GEMINI_MAX_OUTPUT_TOKENS || 1200)
     }
-  );
+  };
 
-  if (!upstream.ok || !upstream.body) {
-    let errorText = "Gemini API request failed";
-    try {
-      const error = await upstream.json();
-      errorText = error.error && error.error.message ? error.error.message : errorText;
-    } catch (_) {
-      errorText = await upstream.text();
+  const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+  const modelCandidates = getModelCandidates(env);
+  let upstream;
+  let selectedModel = modelCandidates[0];
+  let lastError = "Gemini API request failed";
+  let lastStatus = 503;
+
+  for (let modelIndex = 0; modelIndex < modelCandidates.length; modelIndex += 1) {
+    const model = modelCandidates[modelIndex];
+    const attempts = modelIndex === 0 ? 2 : 1;
+
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      upstream = await requestGemini(env, model, geminiBody);
+      if (upstream.ok && upstream.body) {
+        selectedModel = model;
+        break;
+      }
+
+      lastStatus = upstream.status || 502;
+      lastError = await readGeminiError(upstream);
+      if (!retryableStatuses.has(lastStatus)) {
+        return json({ error: lastError }, lastStatus, headers);
+      }
+
+      if (attempt + 1 < attempts) {
+        await wait(500 + Math.floor(Math.random() * 350));
+      }
     }
-    return json({ error: errorText }, upstream.status || 502, headers);
+
+    if (upstream && upstream.ok && upstream.body) break;
+  }
+
+  if (!upstream || !upstream.ok || !upstream.body) {
+    return json({ error: `AI 服务暂时繁忙，请稍后再试。(${lastStatus})` }, lastStatus, headers);
   }
 
   return new Response(upstream.body, {
@@ -173,7 +220,8 @@ export async function onRequestPost(context) {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-store",
       "Connection": "keep-alive",
-      "X-Accel-Buffering": "no"
+      "X-Accel-Buffering": "no",
+      "X-AI-Model": selectedModel
     }
   });
 }
