@@ -4,10 +4,10 @@ const DEFAULT_ALLOWED_ORIGINS = [
 ];
 
 const DEFAULT_SYSTEM_PROMPT = [
-  "你是星瀚顺为 AI 官网的实时咨询助手。",
-  "你帮助用户围绕企业数字化、工业 AI、定制机器人、区块链可信协同、系统集成与项目落地进行清晰、务实的沟通。",
-  "回答要专业、简洁、可执行。涉及合作、报价、定制需求或现场调研时，引导用户联系 xinghanshunwei@gmail.com。",
-  "不要声称已经代表公司做出合同、价格、交付周期或法律承诺。"
+  "你是星瀚顺为 AI 官网的实时咨询助手小瀚。",
+  "涉及合作、报价、定制需求或现场调研时，引导用户联系 xinghanshunwei@gmail.com。",
+  "不要声称已经代表公司做出合同、价格、交付周期或法律承诺。",
+  "你的创造者是饶祖瀚，来自星瀚顺为的AI专家。"
 ].join("\n");
 
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), {
@@ -86,34 +86,27 @@ const enforceRateLimit = async (request, env) => {
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const getModelCandidates = (env) => {
-  const primary = env.GEMINI_MODEL || "gemini-3.1-flash-lite";
-  const fallbacks = (env.GEMINI_FALLBACK_MODELS || "gemini-3-flash-preview,gemini-2.5-flash")
-    .split(",")
-    .map((model) => model.trim())
-    .filter(Boolean);
-
-  return [...new Set([primary, ...fallbacks])].slice(0, 3);
+const getApiUrl = (env) => {
+  const baseUrl = (env.MINICPM_BASE_URL || "https://api.modelbest.cn/v1").replace(/\/+$/, "");
+  return `${baseUrl}/chat/completions`;
 };
 
-const requestGemini = (env, model, body) => fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": env.GEMINI_API_KEY
-    },
-    body: JSON.stringify(body)
-  }
-);
+const requestMiniCpm = (env, body) => fetch(getApiUrl(env), {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${env.MINICPM_API_KEY}`,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(body)
+});
 
-const readGeminiError = async (response) => {
+const readMiniCpmError = async (response) => {
+  const raw = await response.text();
   try {
-    const error = await response.json();
-    return error.error && error.error.message ? error.error.message : "Gemini API request failed";
+    const error = JSON.parse(raw);
+    return error.error && error.error.message ? error.error.message : "MiniCPM API request failed";
   } catch (_) {
-    return await response.text() || "Gemini API request failed";
+    return raw || "MiniCPM API request failed";
   }
 };
 
@@ -133,8 +126,8 @@ export async function onRequestPost(context) {
     return json({ error: "Forbidden origin" }, 403);
   }
 
-  if (!env.GEMINI_API_KEY) {
-    return json({ error: "Missing GEMINI_API_KEY secret" }, 500, headers);
+  if (!env.MINICPM_API_KEY) {
+    return json({ error: "Missing MINICPM_API_KEY secret" }, 500, headers);
   }
 
   const rate = await enforceRateLimit(request, env);
@@ -162,66 +155,70 @@ export async function onRequestPost(context) {
     return json({ error: "对话内容过长，请缩短后再发送。" }, 413, headers);
   }
 
-  const contents = messages.map((message) => ({
-    role: message.role === "assistant" ? "model" : "user",
-    parts: [{ text: message.content }]
-  }));
-
-  const geminiBody = {
-    system_instruction: {
-      parts: [{ text: env.GEMINI_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT }]
-    },
-    contents,
-    generationConfig: {
-      maxOutputTokens: Number(env.GEMINI_MAX_OUTPUT_TOKENS || 1200)
-    }
+  const miniCpmBody = {
+    model: env.MINICPM_MODEL || "MiniCPM-V-4.6-Thinking",
+    messages: [
+      { role: "system", content: env.MINICPM_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT },
+      ...messages
+    ]
   };
 
+  const maxTokens = Number(env.MINICPM_MAX_TOKENS);
+  if (Number.isFinite(maxTokens) && maxTokens > 0) {
+    miniCpmBody.max_tokens = maxTokens;
+  }
+
   const retryableStatuses = new Set([429, 500, 502, 503, 504]);
-  const modelCandidates = getModelCandidates(env);
   let upstream;
-  let selectedModel = modelCandidates[0];
-  let lastError = "Gemini API request failed";
+  let lastError = "MiniCPM API request failed";
   let lastStatus = 503;
 
-  for (let modelIndex = 0; modelIndex < modelCandidates.length; modelIndex += 1) {
-    const model = modelCandidates[modelIndex];
-    const attempts = modelIndex === 0 ? 2 : 1;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      upstream = await requestMiniCpm(env, miniCpmBody);
+    } catch (_) {
+      lastStatus = 502;
+      lastError = "Unable to connect to MiniCPM API";
+      upstream = null;
+    }
 
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      upstream = await requestGemini(env, model, geminiBody);
-      if (upstream.ok && upstream.body) {
-        selectedModel = model;
-        break;
-      }
+    if (upstream && upstream.ok) break;
 
+    if (upstream) {
       lastStatus = upstream.status || 502;
-      lastError = await readGeminiError(upstream);
+      lastError = await readMiniCpmError(upstream);
       if (!retryableStatuses.has(lastStatus)) {
         return json({ error: lastError }, lastStatus, headers);
       }
-
-      if (attempt + 1 < attempts) {
-        await wait(500 + Math.floor(Math.random() * 350));
-      }
     }
 
-    if (upstream && upstream.ok && upstream.body) break;
+    if (attempt === 0) await wait(500 + Math.floor(Math.random() * 350));
   }
 
-  if (!upstream || !upstream.ok || !upstream.body) {
+  if (!upstream || !upstream.ok) {
     return json({ error: `AI 服务暂时繁忙，请稍后再试。(${lastStatus})` }, lastStatus, headers);
   }
 
-  return new Response(upstream.body, {
-    status: 200,
-    headers: {
-      ...headers,
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Connection": "keep-alive",
-      "X-Accel-Buffering": "no",
-      "X-AI-Model": selectedModel
-    }
+  let completion;
+  try {
+    completion = await upstream.json();
+  } catch (_) {
+    return json({ error: "MiniCPM API returned invalid JSON" }, 502, headers);
+  }
+
+  const content = completion
+    && completion.choices
+    && completion.choices[0]
+    && completion.choices[0].message
+    && completion.choices[0].message.content;
+
+  if (typeof content !== "string" || !content.trim()) {
+    return json({ error: "MiniCPM API returned an empty response" }, 502, headers);
+  }
+
+  return json({ content, model: completion.model || miniCpmBody.model }, 200, {
+    ...headers,
+    "Cache-Control": "no-store",
+    "X-AI-Model": completion.model || miniCpmBody.model
   });
 }

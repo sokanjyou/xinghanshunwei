@@ -45,58 +45,6 @@
     submit.textContent = busy ? "生成中" : "发送";
   };
 
-  const extractSsePayloads = (buffer, onPayload) => {
-    const chunks = buffer.split(/\r?\n\r?\n/);
-    const rest = chunks.pop() || "";
-
-    chunks.forEach((chunk) => {
-      const dataLines = chunk
-        .split(/\r?\n/)
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim());
-
-      dataLines.forEach((line) => {
-        if (!line || line === "[DONE]") return;
-        try {
-          onPayload(JSON.parse(line));
-        } catch (error) {
-          console.warn("Unable to parse stream payload", error);
-        }
-      });
-    });
-
-    return rest;
-  };
-
-  const handlePayload = (payload, bubble) => {
-    const parts = payload
-      && payload.candidates
-      && payload.candidates[0]
-      && payload.candidates[0].content
-      && payload.candidates[0].content.parts;
-
-    if (Array.isArray(parts)) {
-      const text = parts
-        .filter((part) => !part.thought)
-        .map((part) => part.text || "")
-        .join("");
-      bubble.textContent += text;
-      scrollToBottom();
-    }
-
-    if (payload.type === "error") {
-      throw new Error(payload.error && payload.error.message ? payload.error.message : "AI 服务暂时不可用");
-    }
-
-    if (payload.error) {
-      throw new Error(payload.error.message || "AI 服务暂时不可用");
-    }
-
-    if (payload.promptFeedback && payload.promptFeedback.blockReason) {
-      throw new Error("这条消息未通过内容安全检查，请调整后重试。");
-    }
-  };
-
   const ask = async (content) => {
     controller = new AbortController();
     const response = await fetch("/api/chat", {
@@ -110,7 +58,7 @@
       signal: controller.signal
     });
 
-    if (!response.ok || !response.body) {
+    if (!response.ok) {
       let detail = "AI 服务暂时不可用";
       try {
         const error = await response.json();
@@ -121,20 +69,9 @@
       throw new Error(detail);
     }
 
-    const bubble = appendMessage("assistant", "");
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const result = await reader.read();
-      if (result.done) break;
-      buffer += decoder.decode(result.value, { stream: true });
-      buffer = extractSsePayloads(buffer, (payload) => handlePayload(payload, bubble));
-    }
-
-    buffer += decoder.decode();
-    extractSsePayloads(`${buffer}\n\n`, (payload) => handlePayload(payload, bubble));
+    const result = await response.json();
+    const bubble = appendMessage("assistant", result.content || "");
+    scrollToBottom();
 
     const assistantText = bubble.textContent.trim();
     if (assistantText) {
