@@ -25,6 +25,7 @@
   let isRecording = false;
   let hasMicrophonePermission = false;
   let isRequestingMicrophone = false;
+  let recognitionStartTimer = null;
 
   const scrollToBottom = () => {
     log.scrollTop = log.scrollHeight;
@@ -292,6 +293,7 @@
     });
     stream.getTracks().forEach((track) => track.stop());
     hasMicrophonePermission = true;
+    await new Promise((resolve) => window.setTimeout(resolve, 180));
   };
 
   const startRecognition = async () => {
@@ -326,12 +328,18 @@
 
     recognition = new SpeechRecognition();
     recognition.lang = "zh-CN";
-    recognition.interimResults = true;
+    const isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    recognition.interimResults = !isAppleMobile;
     recognition.continuous = false;
     recognition.maxAlternatives = 1;
     const existingText = input.value.trim();
+    let finalTranscript = "";
+    let receivedTranscript = false;
+    let recognitionHadError = false;
 
     recognition.onstart = () => {
+      window.clearTimeout(recognitionStartTimer);
       isRecording = true;
       voiceButton.classList.add("is-recording");
       voiceButton.setAttribute("aria-pressed", "true");
@@ -339,20 +347,48 @@
       setStatus("正在聆听，请开始说话");
     };
 
+    recognition.onaudiostart = () => {
+      setStatus("麦克风已连接，正在聆听");
+    };
+
+    recognition.onspeechstart = () => {
+      setStatus("已检测到语音，正在识别");
+    };
+
     recognition.onresult = (event) => {
-      let transcript = "";
-      let isFinal = false;
-      for (let index = 0; index < event.results.length; index += 1) {
-        transcript += event.results[index][0].transcript;
-        isFinal = isFinal || event.results[index].isFinal;
+      let interimTranscript = "";
+      const startIndex = Number.isInteger(event.resultIndex) ? event.resultIndex : 0;
+
+      for (let index = startIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const alternative = result && result[0];
+        const segment = alternative && alternative.transcript
+          ? String(alternative.transcript).trim()
+          : "";
+        if (!segment) continue;
+
+        receivedTranscript = true;
+        if (result.isFinal) {
+          finalTranscript += `${finalTranscript ? " " : ""}${segment}`;
+        } else {
+          interimTranscript += `${interimTranscript ? " " : ""}${segment}`;
+        }
       }
+
+      const transcript = [finalTranscript, interimTranscript].filter(Boolean).join(" ");
       input.value = `${existingText}${existingText && transcript ? " " : ""}${transcript}`;
-      if (isFinal) {
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+
+      if (finalTranscript) {
         setStatus("语音已转写，请确认后发送");
+      } else if (interimTranscript) {
+        setStatus("正在识别，请继续说话");
       }
     };
 
     recognition.onerror = (event) => {
+      recognitionHadError = true;
+      window.clearTimeout(recognitionStartTimer);
       const messagesByError = {
         "not-allowed": "麦克风权限被拒绝，请在浏览器的网站设置中允许麦克风后刷新页面。",
         "service-not-allowed": "浏览器禁止使用语音识别服务，请检查网站权限。",
@@ -364,17 +400,32 @@
       setStatus(messagesByError[event.error] || "语音识别失败，请重试。", true);
     };
 
+    recognition.onnomatch = () => {
+      recognitionHadError = true;
+      setStatus("没有识别出有效内容，请放慢语速后重试。", true);
+    };
+
     recognition.onend = () => {
+      window.clearTimeout(recognitionStartTimer);
       isRecording = false;
       voiceButton.classList.remove("is-recording");
       voiceButton.setAttribute("aria-pressed", "false");
       voiceButtonLabel.textContent = "语音输入";
+      if (!receivedTranscript && !recognitionHadError) {
+        setStatus("没有收到语音识别结果，请再次点击语音输入并清晰说话。", true);
+      }
       if (!window.matchMedia("(pointer: coarse)").matches) input.focus();
     };
 
     try {
+      recognitionStartTimer = window.setTimeout(() => {
+        if (!isRecording) {
+          setStatus("语音识别服务未启动，请更换 Chrome、Edge 或 Safari 重试。", true);
+        }
+      }, 6000);
       recognition.start();
     } catch (error) {
+      window.clearTimeout(recognitionStartTimer);
       resetVoiceButton();
       setStatus("语音识别启动失败，请刷新页面后重试。", true);
     }
