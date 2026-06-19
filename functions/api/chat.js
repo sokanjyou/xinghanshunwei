@@ -78,7 +78,7 @@ const parseAllowedOrigins = (request, env) => {
     .filter(Boolean);
 
   const currentOrigin = new URL(request.url).origin;
-  return new Set(configured.length ? configured : [currentOrigin, ...DEFAULT_ALLOWED_ORIGINS]);
+  return new Set([currentOrigin, ...DEFAULT_ALLOWED_ORIGINS, ...configured]);
 };
 
 const corsHeaders = (origin) => ({
