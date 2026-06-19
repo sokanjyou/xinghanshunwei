@@ -28,6 +28,7 @@
   const CAPTURE_CHUNK_SAMPLES = INPUT_SAMPLE_RATE * CAPTURE_CHUNK_MS / 1000;
   const PLAYBACK_DELAY_MS = 200;
   const PLAYBACK_REBUFFER_MS = 120;
+  const VOICE_TURN_SETTLE_MS = 1500;
   let controller = null;
   let voiceSocket = null;
   let voiceStream = null;
@@ -49,6 +50,7 @@
   let activeAudioSources = new Set();
   let realtimeBubble = null;
   let voiceResponseActive = false;
+  let voiceTurnSettleTimer = null;
 
   const scrollToBottom = () => {
     log.scrollTop = log.scrollHeight;
@@ -313,7 +315,14 @@
     scrollToBottom();
   };
 
+  const cancelVoiceTurnSettle = () => {
+    if (!voiceTurnSettleTimer) return;
+    clearTimeout(voiceTurnSettleTimer);
+    voiceTurnSettleTimer = null;
+  };
+
   const beginVoiceResponse = () => {
+    cancelVoiceTurnSettle();
     if (voiceResponseActive) return;
     voiceResponseActive = true;
     appendMessage("user", "语音消息");
@@ -348,6 +357,18 @@
   const finishPlaybackTurn = () => {
     startQueuedAudio();
     playbackStarted = false;
+  };
+
+  const settleVoiceTurn = () => {
+    if (!voiceResponseActive && !realtimeBubble && !playbackStarted && !playbackQueue.length) return;
+    cancelVoiceTurnSettle();
+    voiceTurnSettleTimer = setTimeout(() => {
+      finishPlaybackTurn();
+      voiceResponseActive = false;
+      realtimeBubble = null;
+      voiceTurnSettleTimer = null;
+      if (voiceActive) setStatus("实时语音中，正在聆听");
+    }, VOICE_TURN_SETTLE_MS);
   };
 
   const playRealtimeAudio = async (encodedAudio) => {
@@ -416,6 +437,7 @@
     nextPlaybackTime = 0;
     playbackUnderruns = 0;
     voiceResponseActive = false;
+    cancelVoiceTurnSettle();
   };
 
   const stopVoiceConversation = (showStatus = true) => {
@@ -530,14 +552,11 @@
             playRealtimeAudio(event.audio).catch(() => setStatus("语音播放失败，字幕仍可正常显示。", true));
           }
           if (event.end_of_turn) {
-            finishPlaybackTurn();
+            settleVoiceTurn();
           }
           setStatus("小瀚正在回答，可随时继续说话");
         } else if (event.type === "response.listen") {
-          finishPlaybackTurn();
-          voiceResponseActive = false;
-          realtimeBubble = null;
-          setStatus("实时语音中，正在聆听");
+          settleVoiceTurn();
         } else if (event.type === "response.output.delta" && event.kind === "text") {
           beginVoiceResponse();
           updateRealtimeCaption(event);
@@ -546,10 +565,7 @@
           beginVoiceResponse();
           playRealtimeAudio(event.audio).catch(() => setStatus("语音播放失败，字幕仍可正常显示。", true));
         } else if (event.type === "response.output.delta" && event.kind === "listen") {
-          finishPlaybackTurn();
-          voiceResponseActive = false;
-          realtimeBubble = null;
-          setStatus("实时语音中，正在聆听");
+          settleVoiceTurn();
         } else if (event.type === "error") {
           const detail = event.error?.message || "实时语音服务暂时不可用";
           setStatus(detail, true);
