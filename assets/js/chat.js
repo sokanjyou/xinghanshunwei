@@ -24,6 +24,10 @@
   const REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=audio";
   const INPUT_SAMPLE_RATE = 16000;
   const OUTPUT_SAMPLE_RATE = 24000;
+  const INPUT_CHUNK_DURATION_MS = 200;
+  const INPUT_CHUNK_SAMPLES = INPUT_SAMPLE_RATE * INPUT_CHUNK_DURATION_MS / 1000;
+  const PLAYBACK_PREBUFFER_SECONDS = 0.2;
+  const PLAYBACK_START_DELAY_SECONDS = 0.04;
   const VOICE_TURN_GRACE_MS = 2400;
   const VOICE_SPEECH_RMS_THRESHOLD = 0.008;
   const VOICE_SPEECH_PEAK_THRESHOLD = 0.06;
@@ -40,6 +44,9 @@
   let voiceStopping = false;
   let sessionReady = false;
   let captureSamples = [];
+  let playbackQueue = [];
+  let queuedPlaybackDuration = 0;
+  let playbackPrimed = false;
   let nextPlaybackTime = 0;
   let activeAudioSources = new Set();
   let realtimeBubble = null;
@@ -311,22 +318,42 @@
     scrollToBottom();
   };
 
+  const scheduleQueuedAudio = (flush = false) => {
+    if (!outputAudioContext || outputAudioContext.state !== "running" || !playbackQueue.length) return;
+
+    const now = outputAudioContext.currentTime;
+    if (playbackPrimed && nextPlaybackTime <= now + 0.01) {
+      playbackPrimed = false;
+      nextPlaybackTime = 0;
+    }
+    if (!playbackPrimed) {
+      if (!flush && queuedPlaybackDuration < PLAYBACK_PREBUFFER_SECONDS) return;
+      nextPlaybackTime = now + PLAYBACK_START_DELAY_SECONDS;
+      playbackPrimed = true;
+    }
+
+    while (playbackQueue.length) {
+      const buffer = playbackQueue.shift();
+      queuedPlaybackDuration = Math.max(0, queuedPlaybackDuration - buffer.duration);
+      const source = outputAudioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(outputAudioContext.destination);
+      activeAudioSources.add(source);
+      source.onended = () => activeAudioSources.delete(source);
+      source.start(nextPlaybackTime);
+      nextPlaybackTime += buffer.duration;
+    }
+  };
+
   const playRealtimeAudio = async (encodedAudio) => {
-    if (!encodedAudio) return;
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    outputAudioContext ||= new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
-    if (outputAudioContext.state === "suspended") await outputAudioContext.resume();
+    if (!encodedAudio || !outputAudioContext) return;
     const samples = base64ToFloat32(encodedAudio);
     const buffer = outputAudioContext.createBuffer(1, samples.length, OUTPUT_SAMPLE_RATE);
     buffer.copyToChannel(samples, 0);
-    const source = outputAudioContext.createBufferSource();
-    source.buffer = buffer;
-    source.connect(outputAudioContext.destination);
-    const startAt = Math.max(outputAudioContext.currentTime + 0.03, nextPlaybackTime);
-    nextPlaybackTime = startAt + buffer.duration;
-    activeAudioSources.add(source);
-    source.onended = () => activeAudioSources.delete(source);
-    source.start(startAt);
+    playbackQueue.push(buffer);
+    queuedPlaybackDuration += buffer.duration;
+    if (outputAudioContext.state === "suspended") await outputAudioContext.resume();
+    scheduleQueuedAudio();
   };
 
   const shouldKeepListening = (samples) => {
@@ -372,12 +399,22 @@
     silentOutput?.disconnect();
     voiceStream?.getTracks().forEach((track) => track.stop());
     inputAudioContext?.close().catch(() => {});
+    activeAudioSources.forEach((source) => {
+      try { source.stop(); } catch (_) { /* already stopped */ }
+    });
+    activeAudioSources.clear();
+    outputAudioContext?.close().catch(() => {});
     inputProcessor = null;
     inputSource = null;
     silentOutput = null;
     voiceStream = null;
     inputAudioContext = null;
+    outputAudioContext = null;
     captureSamples = [];
+    playbackQueue = [];
+    queuedPlaybackDuration = 0;
+    playbackPrimed = false;
+    nextPlaybackTime = 0;
   };
 
   const stopVoiceConversation = (showStatus = true) => {
@@ -389,11 +426,6 @@
     voiceSocket?.close();
     voiceSocket = null;
     releaseVoiceResources();
-    activeAudioSources.forEach((source) => {
-      try { source.stop(); } catch (_) { /* already stopped */ }
-    });
-    activeAudioSources.clear();
-    nextPlaybackTime = 0;
     realtimeBubble = null;
     realtimeResponseId = "";
     resetVoiceUi();
@@ -423,7 +455,8 @@
       });
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       inputAudioContext = new AudioContext();
-      await inputAudioContext.resume();
+      outputAudioContext = new AudioContext({ latencyHint: "interactive" });
+      await Promise.all([inputAudioContext.resume(), outputAudioContext.resume()]);
       inputSource = inputAudioContext.createMediaStreamSource(voiceStream);
       inputProcessor = inputAudioContext.createScriptProcessor(4096, 1, 1);
       silentOutput = inputAudioContext.createGain();
@@ -436,8 +469,8 @@
           event.inputBuffer.getChannelData(0), inputAudioContext.sampleRate, INPUT_SAMPLE_RATE
         );
         captureSamples.push(...resampled);
-        while (captureSamples.length >= INPUT_SAMPLE_RATE) {
-          sendCapturedAudio(new Float32Array(captureSamples.splice(0, INPUT_SAMPLE_RATE)));
+        while (captureSamples.length >= INPUT_CHUNK_SAMPLES) {
+          sendCapturedAudio(new Float32Array(captureSamples.splice(0, INPUT_CHUNK_SAMPLES)));
         }
       };
 
@@ -474,6 +507,7 @@
         } else if (event.type === "response.output.delta" && event.kind === "audio") {
           playRealtimeAudio(event.audio).catch(() => setStatus("语音播放失败，字幕仍可正常显示。", true));
         } else if (event.type === "response.output.delta" && event.kind === "listen") {
+          scheduleQueuedAudio(true);
           realtimeBubble = null;
           realtimeResponseId = "";
           setStatus("实时语音中，正在聆听");
