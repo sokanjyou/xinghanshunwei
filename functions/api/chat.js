@@ -47,6 +47,7 @@ const MAX_TOTAL_MEDIA_LENGTH = 9_000_000;
 const MAX_IMAGES_PER_REQUEST = 5;
 const MAX_SEARCH_QUERY_LENGTH = 400;
 const MAX_SEARCH_RESULTS = 5;
+const FALLBACK_TEXT_MODEL = "MiniCPM-V-4.6-Instruct";
 const SPORTS_QUERY_PATTERN = /(?:世界杯|世俱杯|亚洲杯|欧洲杯|欧冠|亚冠|英超|西甲|德甲|意甲|法甲|中超|NBA|CBA|足球|篮球|网球|排球|球赛|比赛|赛事|联赛|球队|球员|比分|赛程|积分榜|淘汰赛|决赛)/i;
 const RECENT_QUERY_PATTERN = /(?:最新|实时|今日|今天|昨天|本周|本月|近期|最近|刚刚|刚才|近况|发生了什么|赛况)/i;
 const PRICE_LOCAL_QUERY_PATTERN = /(?:便宜|实惠|划算|低价|最低价|优惠|折扣|促销|特价|团购|多少钱|报价|价格对比|比价|哪里买|在哪买|附近|周边|周围|就近|(?:哪个|哪款|哪家|推荐|比较).{0,10}性价比|性价比.{0,8}(?:高|好|推荐|最高)|离(?:我|这里|这儿|当前位置).{0,6}(?:最近|近)|最近的(?:餐厅|饭店|酒店|医院|诊所|景点|商店|门店)|(?:本地|当地).{0,8}(?:餐厅|饭店|酒店|医院|诊所|景点|商家|门店|服务|活动|价格)|营业中|营业时间|今天开门)/i;
@@ -456,7 +457,7 @@ export async function onRequestOptions(context) {
   return new Response(null, { status: 204, headers: corsHeaders(origin) });
 }
 
-export async function onRequestPost(context) {
+const handleRequestPost = async (context) => {
   const { request, env } = context;
   const { allowed, origin } = isOriginAllowed(request, env);
   const headers = allowed ? corsHeaders(origin) : {};
@@ -534,7 +535,7 @@ export async function onRequestPost(context) {
   const webContext = buildWebContext(webSearch.sources);
 
   const miniCpmBody = {
-    model: env.MINICPM_MODEL || "MiniCPM-o-4.5",
+    model: env.MINICPM_MODEL || FALLBACK_TEXT_MODEL,
     messages: [
       {
         role: "system",
@@ -567,13 +568,21 @@ export async function onRequestPost(context) {
 
     if (upstream) {
       lastStatus = upstream.status || 502;
-      lastError = await readMiniCpmError(upstream);
-      if (!retryableStatuses.has(lastStatus)) {
+      try {
+        lastError = await readMiniCpmError(upstream);
+      } catch (_) {
+        lastError = "MiniCPM API request failed";
+      }
+      const canFallbackModel = attempt === 0 && miniCpmBody.model !== FALLBACK_TEXT_MODEL;
+      if (!retryableStatuses.has(lastStatus) && !canFallbackModel) {
         return json({ error: lastError }, lastStatus, headers);
       }
     }
 
-    if (attempt === 0) await wait(500 + Math.floor(Math.random() * 350));
+    if (attempt === 0) {
+      miniCpmBody.model = FALLBACK_TEXT_MODEL;
+      await wait(500 + Math.floor(Math.random() * 350));
+    }
   }
 
   if (!upstream || !upstream.ok) {
@@ -626,4 +635,14 @@ export async function onRequestPost(context) {
     ...headers,
     "Cache-Control": "no-store"
   });
+};
+
+export async function onRequestPost(context) {
+  try {
+    return await handleRequestPost(context);
+  } catch (_) {
+    const { allowed, origin } = isOriginAllowed(context.request, context.env);
+    return json({ error: "AI 服务暂时不可用，请稍后再试。" }, 502,
+      allowed ? corsHeaders(origin) : {});
+  }
 }
