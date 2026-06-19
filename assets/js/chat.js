@@ -46,6 +46,10 @@
   let activeAudioSources = new Set();
   let realtimeBubble = null;
   let realtimeResponseId = "";
+  let voiceRecognition = null;
+  let voiceTranscriptBubble = null;
+  let lastVoiceTranscript = "";
+  let lastVoiceTranscriptAt = 0;
 
   const scrollToBottom = () => {
     log.scrollTop = log.scrollHeight;
@@ -312,6 +316,82 @@
     scrollToBottom();
   };
 
+  const updateVoiceTranscriptBubble = (text) => {
+    const transcript = String(text || "").trim();
+    if (!transcript) return;
+    if (!voiceTranscriptBubble) voiceTranscriptBubble = appendMessage("user", "");
+    let textBlock = voiceTranscriptBubble.querySelector(".chat-message-text");
+    if (!textBlock) {
+      textBlock = document.createElement("div");
+      textBlock.className = "chat-message-text";
+      voiceTranscriptBubble.append(textBlock);
+    }
+    textBlock.textContent = transcript;
+    scrollToBottom();
+  };
+
+  const commitVoiceTranscript = (text) => {
+    const transcript = String(text || "").trim();
+    if (!transcript) return;
+    const now = Date.now();
+    if (transcript === lastVoiceTranscript && now - lastVoiceTranscriptAt < 3000) {
+      const bubbleText = voiceTranscriptBubble?.querySelector(".chat-message-text")?.textContent?.trim();
+      if (bubbleText === transcript) {
+        voiceTranscriptBubble.closest(".chat-message")?.remove();
+        voiceTranscriptBubble = null;
+      }
+      return;
+    }
+    updateVoiceTranscriptBubble(transcript);
+    lastVoiceTranscript = transcript;
+    lastVoiceTranscriptAt = now;
+    voiceTranscriptBubble = null;
+  };
+
+  const startVoiceRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition || voiceRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    voiceRecognition = recognition;
+    recognition.lang = "zh-CN";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (event) => {
+      let interimText = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = event.results[index][0]?.transcript || "";
+        if (event.results[index].isFinal) commitVoiceTranscript(transcript);
+        else interimText += transcript;
+      }
+      if (interimText) updateVoiceTranscriptBubble(interimText);
+    };
+    recognition.onerror = (event) => {
+      if (["not-allowed", "service-not-allowed"].includes(event.error)) {
+        voiceRecognition = null;
+      }
+    };
+    recognition.onend = () => {
+      if (voiceRecognition !== recognition || !voiceActive || voiceStopping) return;
+      setTimeout(() => {
+        if (voiceRecognition === recognition && voiceActive && !voiceStopping) {
+          try { recognition.start(); } catch (_) { /* already running */ }
+        }
+      }, 250);
+    };
+    try { recognition.start(); } catch (_) { voiceRecognition = null; }
+  };
+
+  const stopVoiceRecognition = () => {
+    const recognition = voiceRecognition;
+    voiceRecognition = null;
+    if (recognition) {
+      recognition.onend = null;
+      try { recognition.abort(); } catch (_) { /* already stopped */ }
+    }
+    voiceTranscriptBubble = null;
+  };
+
   const scheduleQueuedAudio = (flush = false) => {
     if (!outputAudioContext || outputAudioContext.state !== "running" || !playbackQueue.length) return;
 
@@ -371,6 +451,7 @@
   };
 
   const releaseVoiceResources = () => {
+    stopVoiceRecognition();
     inputProcessor?.port?.postMessage({ command: "stop" });
     inputProcessor?.disconnect();
     inputSource?.disconnect();
@@ -492,6 +573,13 @@
           voiceButton.setAttribute("aria-pressed", "true");
           voiceButtonLabel.textContent = "结束对话";
           setStatus("实时语音中，可以慢慢说，停顿一下也没关系");
+          startVoiceRecognition();
+        } else if ([
+          "conversation.item.input_audio_transcription.completed",
+          "input_audio_transcription.completed",
+          "response.input_audio_transcription.completed"
+        ].includes(event.type)) {
+          commitVoiceTranscript(event.transcript || event.text);
         } else if (event.type === "response.output_audio.delta") {
           if (event.text) updateRealtimeCaption(event);
           if (event.audio) {
@@ -500,6 +588,7 @@
           if (event.end_of_turn) scheduleQueuedAudio(true);
           setStatus("小瀚正在回答，可随时继续说话");
         } else if (event.type === "response.listen") {
+          if (event.text || event.transcript) commitVoiceTranscript(event.text || event.transcript);
           scheduleQueuedAudio(true);
           realtimeBubble = null;
           realtimeResponseId = "";
@@ -510,6 +599,7 @@
         } else if (event.type === "response.output.delta" && event.kind === "audio") {
           playRealtimeAudio(event.audio).catch(() => setStatus("语音播放失败，字幕仍可正常显示。", true));
         } else if (event.type === "response.output.delta" && event.kind === "listen") {
+          if (event.text || event.transcript) commitVoiceTranscript(event.text || event.transcript);
           scheduleQueuedAudio(true);
           realtimeBubble = null;
           realtimeResponseId = "";
