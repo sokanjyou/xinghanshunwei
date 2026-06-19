@@ -17,7 +17,8 @@
   const messages = [];
   const attachments = [];
   const MAX_IMAGES = 5;
-  const CHAT_API_URL = window.location.hostname === "www.xinghanshunwei.top"
+  const isLocalPreview = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  const CHAT_API_URL = window.location.hostname === "www.xinghanshunwei.top" || isLocalPreview
     ? "https://xinghanshunwei.top/api/chat"
     : "/api/chat";
   const REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=audio";
@@ -57,7 +58,7 @@
     .replace(/\*/g, "")
     .trim();
 
-  const appendMessage = (role, text, imageUrls = []) => {
+  const appendMessage = (role, text, imageUrls = [], sources = []) => {
     const article = document.createElement("article");
     article.className = `chat-message ${role}`;
 
@@ -87,6 +88,29 @@
         imageGrid.append(thumbnail);
       });
       bubble.append(imageGrid);
+    }
+
+    if (role === "assistant" && sources.length) {
+      const sourceBlock = document.createElement("div");
+      sourceBlock.className = "chat-sources";
+      const sourceTitle = document.createElement("div");
+      sourceTitle.className = "chat-sources-title";
+      sourceTitle.textContent = "联网来源";
+      sourceBlock.append(sourceTitle);
+
+      sources.forEach((source) => {
+        let url;
+        try { url = new URL(source.url); } catch (_) { return; }
+        if (url.protocol !== "https:" && url.protocol !== "http:") return;
+        const link = document.createElement("a");
+        link.href = url.toString();
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = `[${source.id}] ${source.title || url.hostname}`;
+        sourceBlock.append(link);
+      });
+
+      if (sourceBlock.childElementCount > 1) bubble.append(sourceBlock);
     }
 
     article.append(avatar, bubble);
@@ -208,7 +232,8 @@
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        messages: messages.concat({ role: "user", content: requestContent })
+        messages: messages.concat({ role: "user", content: requestContent }),
+        web_search: true
       }),
       signal: controller.signal
     });
@@ -233,7 +258,18 @@
 
     if (!assistantContent) throw new Error("这次没有收到有效回复，请稍后再试。");
 
-    appendMessage("assistant", assistantContent);
+    appendMessage("assistant", assistantContent, [], Array.isArray(result.sources) ? result.sources : []);
+    if (result.web_search_status === "unavailable") {
+      setStatus("联网搜索暂时不可用，当前为模型直接回答", true);
+    } else if (result.web_search_status === "limited") {
+      setStatus("免密联网额度暂时用完，当前为模型直接回答", true);
+    } else if (result.web_search_status === "empty") {
+      setStatus("未检索到可引用来源，当前为模型直接回答", true);
+    } else if (result.web_search_status === "skipped") {
+      setStatus("本次问题未使用联网搜索");
+    } else {
+      setStatus("免密联网分析完成");
+    }
     messages.push({ role: "user", content: historyContent });
     messages.push({ role: "assistant", content: assistantContent });
     while (messages.length > 12) messages.shift();
@@ -483,16 +519,21 @@
     appendMessage("user", prompt, displayImages);
     input.value = "";
     setBusy(true);
-    setStatus("正在生成");
+    setStatus("正在联网检索并分析");
 
     try {
       await ask(requestContent, historyContent);
       attachments.length = 0;
       renderAttachments();
-      setStatus("已连接");
     } catch (error) {
-      appendMessage("assistant", error.message || "AI 服务暂时不可用，请稍后再试。");
-      setStatus("连接异常", true);
+      const localFetchFailure = isLocalPreview
+        && error instanceof TypeError
+        && /fetch/i.test(error.message || "");
+      const message = localFetchFailure
+        ? "本地预览无法连接线上聊天接口。请先部署包含本地 CORS 支持的最新版本，再刷新页面重试。"
+        : (error.message || "AI 服务暂时不可用，请稍后再试。");
+      appendMessage("assistant", message);
+      setStatus(localFetchFailure ? "本地接口未就绪" : "连接异常", true);
     } finally {
       setBusy(false);
       controller = null;
