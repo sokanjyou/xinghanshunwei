@@ -59,6 +59,13 @@
     .replace(/\s*[\[【](?:\d+(?:\s*[-,，]\s*\d+)*)[\]】]/g, "")
     .trim();
 
+  const requiresFreshWebSearch = (text) => [
+    /(?:世界杯|世俱杯|亚洲杯|欧洲杯|欧冠|亚冠|英超|西甲|德甲|意甲|法甲|中超|NBA|CBA|足球|篮球|球赛|比赛|赛事|联赛|球队|比分|赛程|积分榜)/i,
+    /(?:最新|实时)|(?:最近|今天|今日|本周|本月|近期|刚刚|目前|当前).{0,18}(?:情况|新闻|消息|进展|动态|结果|价格|行情|版本|排名|发生|如何|怎么样|哪些|多少|是什么)/i,
+    /(?:天气|气温|汇率|股价|金价|油价|票价|房价|便宜|优惠|折扣|促销|特价|哪里买|附近|周边|营业时间|现在营业)/i,
+    /(?:联网|上网|搜索|查询|检索|查一下)/i
+  ].some((pattern) => pattern.test(String(text || "")));
+
   const appendMessage = (role, text, imageUrls = []) => {
     const article = document.createElement("article");
     article.className = `chat-message ${role}`;
@@ -211,7 +218,7 @@
       },
       body: JSON.stringify({
         messages: messages.concat({ role: "user", content: requestContent }),
-        web_search: "auto"
+        web_search: requiresFreshWebSearch(historyContent) ? true : "auto"
       }),
       signal: controller.signal
     });
