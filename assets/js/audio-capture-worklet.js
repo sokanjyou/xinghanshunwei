@@ -2,14 +2,15 @@ class VoiceCaptureProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
     this.chunkSize = options.processorOptions?.chunkSize || 16000;
-    this.samples = [];
+    this.samples = new Float32Array(this.chunkSize);
+    this.sampleCount = 0;
     this.active = false;
     this.port.onmessage = (event) => {
       if (event.data?.command === "start") {
-        this.samples = [];
+        this.sampleCount = 0;
         this.active = true;
       } else if (event.data?.command === "stop") {
-        this.samples = [];
+        this.sampleCount = 0;
         this.active = false;
       }
     };
@@ -19,10 +20,19 @@ class VoiceCaptureProcessor extends AudioWorkletProcessor {
     const input = inputs[0]?.[0];
     if (!this.active || !input?.length) return true;
 
-    for (let index = 0; index < input.length; index += 1) this.samples.push(input[index]);
-    while (this.samples.length >= this.chunkSize) {
-      const chunk = new Float32Array(this.samples.splice(0, this.chunkSize));
-      this.port.postMessage({ type: "chunk", audio: chunk }, [chunk.buffer]);
+    let inputOffset = 0;
+    while (inputOffset < input.length) {
+      const copyCount = Math.min(input.length - inputOffset, this.chunkSize - this.sampleCount);
+      this.samples.set(input.subarray(inputOffset, inputOffset + copyCount), this.sampleCount);
+      this.sampleCount += copyCount;
+      inputOffset += copyCount;
+
+      if (this.sampleCount === this.chunkSize) {
+        const chunk = this.samples;
+        this.samples = new Float32Array(this.chunkSize);
+        this.sampleCount = 0;
+        this.port.postMessage({ type: "chunk", audio: chunk }, [chunk.buffer]);
+      }
     }
     return true;
   }

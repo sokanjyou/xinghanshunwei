@@ -24,7 +24,10 @@
   const REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=audio";
   const INPUT_SAMPLE_RATE = 16000;
   const OUTPUT_SAMPLE_RATE = 24000;
+  const CAPTURE_CHUNK_MS = 500;
+  const CAPTURE_CHUNK_SAMPLES = INPUT_SAMPLE_RATE * CAPTURE_CHUNK_MS / 1000;
   const PLAYBACK_DELAY_MS = 200;
+  const PLAYBACK_REBUFFER_MS = 120;
   let controller = null;
   let voiceSocket = null;
   let voiceStream = null;
@@ -42,6 +45,7 @@
   let playbackStarted = false;
   let playbackDelayTimer = null;
   let nextPlaybackTime = 0;
+  let playbackUnderruns = 0;
   let activeAudioSources = new Set();
   let realtimeBubble = null;
   let realtimeResponseId = "";
@@ -332,6 +336,11 @@
     nextPlaybackTime += buffer.duration;
   };
 
+  const queuePlaybackBuffer = (buffer, delayMs) => {
+    playbackQueue.push(buffer);
+    playbackDelayTimer ||= setTimeout(startQueuedAudio, delayMs);
+  };
+
   const startQueuedAudio = () => {
     if (!outputAudioContext || !playbackQueue.length) return;
     if (playbackDelayTimer) {
@@ -356,11 +365,17 @@
     buffer.copyToChannel(samples, 0);
     if (outputAudioContext.state === "suspended") await outputAudioContext.resume();
     if (playbackStarted) {
+      if (nextPlaybackTime <= outputAudioContext.currentTime) {
+        playbackStarted = false;
+        playbackUnderruns += 1;
+        queuePlaybackBuffer(buffer, PLAYBACK_REBUFFER_MS);
+        console.debug(`[voice] playback underrun #${playbackUnderruns}; rebuffering`);
+        return;
+      }
       scheduleAudioBuffer(buffer);
       return;
     }
-    playbackQueue.push(buffer);
-    playbackDelayTimer ||= setTimeout(startQueuedAudio, PLAYBACK_DELAY_MS);
+    queuePlaybackBuffer(buffer, PLAYBACK_DELAY_MS);
   };
 
   const sendCapturedAudio = (samples) => {
@@ -405,6 +420,7 @@
     if (playbackDelayTimer) clearTimeout(playbackDelayTimer);
     playbackDelayTimer = null;
     nextPlaybackTime = 0;
+    playbackUnderruns = 0;
     voiceResponseActive = false;
     lastVoiceResponseId = "";
   };
@@ -453,9 +469,9 @@
       silentOutput.gain.value = 0;
 
       if (inputAudioContext.audioWorklet && typeof AudioWorkletNode !== "undefined") {
-        await inputAudioContext.audioWorklet.addModule("../assets/js/audio-capture-worklet.js?v=20260619-voice-fix4");
+        await inputAudioContext.audioWorklet.addModule("../assets/js/audio-capture-worklet.js?v=20260619-voice-fix5");
         inputProcessor = new AudioWorkletNode(inputAudioContext, "voice-capture-processor", {
-          processorOptions: { chunkSize: INPUT_SAMPLE_RATE }
+          processorOptions: { chunkSize: CAPTURE_CHUNK_SAMPLES }
         });
         inputProcessor.port.onmessage = (event) => {
           if (event.data?.type === "chunk") sendCapturedAudio(event.data.audio);
@@ -468,8 +484,8 @@
             event.inputBuffer.getChannelData(0), inputAudioContext.sampleRate, INPUT_SAMPLE_RATE
           );
           captureSamples.push(...resampled);
-          while (captureSamples.length >= INPUT_SAMPLE_RATE) {
-            sendCapturedAudio(new Float32Array(captureSamples.splice(0, INPUT_SAMPLE_RATE)));
+          while (captureSamples.length >= CAPTURE_CHUNK_SAMPLES) {
+            sendCapturedAudio(new Float32Array(captureSamples.splice(0, CAPTURE_CHUNK_SAMPLES)));
           }
         };
       }
