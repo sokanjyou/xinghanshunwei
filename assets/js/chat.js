@@ -215,17 +215,26 @@
 
   const ask = async (requestContent, historyContent) => {
     controller = new AbortController();
-    const response = await fetch(CHAT_API_URL, {
+    const requestBody = JSON.stringify({
+      messages: messages.concat({ role: "user", content: requestContent }),
+      web_search: requiresFreshWebSearch(historyContent) ? true : "auto"
+    });
+    const fetchChat = () => fetch(CHAT_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        messages: messages.concat({ role: "user", content: requestContent }),
-        web_search: requiresFreshWebSearch(historyContent) ? true : "auto"
-      }),
+      body: requestBody,
       signal: controller.signal
     });
+    let response;
+    try {
+      response = await fetchChat();
+    } catch (error) {
+      if (error && error.name === "AbortError") throw error;
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      response = await fetchChat();
+    }
 
     if (!response.ok) {
       let detail = "AI 服务暂时不可用";
@@ -524,14 +533,14 @@
       attachments.length = 0;
       renderAttachments();
     } catch (error) {
-      const localFetchFailure = isLocalPreview
-        && error instanceof TypeError
-        && /fetch/i.test(error.message || "");
-      const message = localFetchFailure
-        ? "本地预览无法连接线上聊天接口。请先部署包含本地 CORS 支持的最新版本，再刷新页面重试。"
+      const fetchFailure = error instanceof TypeError && /fetch/i.test(error.message || "");
+      const message = fetchFailure
+        ? (isLocalPreview
+          ? "本地预览无法连接线上聊天接口，请确认页面通过本地服务器打开，并部署最新的 CORS 配置。"
+          : "暂时无法连接聊天服务，请检查网络后重试。")
         : (error.message || "AI 服务暂时不可用，请稍后再试。");
       appendMessage("assistant", message);
-      setStatus(localFetchFailure ? "本地接口未就绪" : "连接异常", true);
+      setStatus(fetchFailure ? "连接失败" : "连接异常", true);
     } finally {
       setBusy(false);
       controller = null;
