@@ -346,7 +346,9 @@
   };
 
   const playRealtimeAudio = async (encodedAudio) => {
-    if (!encodedAudio || !outputAudioContext) return;
+    if (!encodedAudio) return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    outputAudioContext ||= new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE, latencyHint: "interactive" });
     const samples = base64ToFloat32(encodedAudio);
     const buffer = outputAudioContext.createBuffer(1, samples.length, OUTPUT_SAMPLE_RATE);
     buffer.copyToChannel(samples, 0);
@@ -455,8 +457,7 @@
       });
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       inputAudioContext = new AudioContext();
-      outputAudioContext = new AudioContext({ latencyHint: "interactive" });
-      await Promise.all([inputAudioContext.resume(), outputAudioContext.resume()]);
+      await inputAudioContext.resume();
       inputSource = inputAudioContext.createMediaStreamSource(voiceStream);
       inputProcessor = inputAudioContext.createScriptProcessor(4096, 1, 1);
       silentOutput = inputAudioContext.createGain();
