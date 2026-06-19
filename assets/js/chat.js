@@ -24,9 +24,7 @@
   const REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=audio";
   const INPUT_SAMPLE_RATE = 16000;
   const OUTPUT_SAMPLE_RATE = 24000;
-  const INPUT_CHUNK_DURATION_MS = 200;
-  const INPUT_CHUNK_SAMPLES = INPUT_SAMPLE_RATE * INPUT_CHUNK_DURATION_MS / 1000;
-  const PLAYBACK_PREBUFFER_SECONDS = 0.2;
+  const PLAYBACK_PREBUFFER_SECONDS = 0.35;
   const PLAYBACK_START_DELAY_SECONDS = 0.04;
   const VOICE_TURN_GRACE_MS = 2400;
   const VOICE_SPEECH_RMS_THRESHOLD = 0.008;
@@ -449,7 +447,7 @@
     voiceButton.disabled = true;
     voiceButton.classList.add("is-requesting");
     voiceButtonLabel.textContent = "正在连接";
-    setStatus("正在连接 MiniCPM-o 实时语音");
+    setStatus("正在连接实时语音");
 
     try {
       voiceStream = await navigator.mediaDevices.getUserMedia({
@@ -470,8 +468,8 @@
           event.inputBuffer.getChannelData(0), inputAudioContext.sampleRate, INPUT_SAMPLE_RATE
         );
         captureSamples.push(...resampled);
-        while (captureSamples.length >= INPUT_CHUNK_SAMPLES) {
-          sendCapturedAudio(new Float32Array(captureSamples.splice(0, INPUT_CHUNK_SAMPLES)));
+        while (captureSamples.length >= INPUT_SAMPLE_RATE) {
+          sendCapturedAudio(new Float32Array(captureSamples.splice(0, INPUT_SAMPLE_RATE)));
         }
       };
 
