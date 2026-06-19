@@ -54,6 +54,7 @@
   let voiceTurnSamples = [];
   let voiceTurnSampleCount = 0;
   let voiceResponseActive = false;
+  let lastVoiceResponseId = "";
 
   const scrollToBottom = () => {
     log.scrollTop = log.scrollHeight;
@@ -352,35 +353,14 @@
     voiceTranscriptBubble = null;
   };
 
-  const encodeVoiceTurnAsWav = (chunks, sampleCount) => {
-    const buffer = new ArrayBuffer(44 + sampleCount * 2);
-    const view = new DataView(buffer);
-    const writeAscii = (offset, value) => {
-      for (let index = 0; index < value.length; index += 1) view.setUint8(offset + index, value.charCodeAt(index));
-    };
-    writeAscii(0, "RIFF");
-    view.setUint32(4, 36 + sampleCount * 2, true);
-    writeAscii(8, "WAVE");
-    writeAscii(12, "fmt ");
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 1, true);
-    view.setUint32(24, INPUT_SAMPLE_RATE, true);
-    view.setUint32(28, INPUT_SAMPLE_RATE * 2, true);
-    view.setUint16(32, 2, true);
-    view.setUint16(34, 16, true);
-    writeAscii(36, "data");
-    view.setUint32(40, sampleCount * 2, true);
-
-    let offset = 44;
+  const encodeVoiceTurnAudio = (chunks, sampleCount) => {
+    const samples = new Float32Array(sampleCount);
+    let offset = 0;
     for (const chunk of chunks) {
-      for (let index = 0; index < chunk.length; index += 1) {
-        const sample = Math.max(-1, Math.min(1, chunk[index]));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-        offset += 2;
-      }
+      samples.set(chunk, offset);
+      offset += chunk.length;
     }
-    return float32ToBase64(new Uint8Array(buffer));
+    return float32ToBase64(samples);
   };
 
   const transcribeVoiceTurn = () => {
@@ -400,7 +380,7 @@
     fetch(TRANSCRIBE_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ audio: encodeVoiceTurnAsWav(chunks, sampleCount) })
+      body: JSON.stringify({ audio: encodeVoiceTurnAudio(chunks, sampleCount) })
     }).then(async (response) => {
       if (!response.ok) throw new Error("Transcription failed");
       const result = await response.json();
@@ -410,12 +390,17 @@
       if (textBlock) textBlock.textContent = transcript;
       lastVoiceTranscript = transcript;
       lastVoiceTranscriptAt = Date.now();
-    }).catch(() => transcriptBubble.closest(".chat-message")?.remove());
+    }).catch(() => {
+      const textBlock = transcriptBubble.querySelector(".chat-message-text");
+      if (textBlock) textBlock.textContent = "语音消息（转写暂不可用）";
+    });
   };
 
-  const beginVoiceResponse = () => {
-    if (voiceResponseActive) return;
+  const beginVoiceResponse = (event) => {
+    const responseId = String(event?.response_id || "");
+    if ((responseId && responseId === lastVoiceResponseId) || (!responseId && voiceResponseActive)) return;
     voiceResponseActive = true;
+    if (responseId) lastVoiceResponseId = responseId;
     transcribeVoiceTurn();
   };
 
@@ -512,6 +497,7 @@
     voiceTurnSamples = [];
     voiceTurnSampleCount = 0;
     voiceResponseActive = false;
+    lastVoiceResponseId = "";
   };
 
   const stopVoiceConversation = (showStatus = true) => {
@@ -627,12 +613,15 @@
         ].includes(event.type)) {
           commitVoiceTranscript(event.transcript || event.text);
         } else if (event.type === "response.output_audio.delta") {
-          beginVoiceResponse();
+          beginVoiceResponse(event);
           if (event.text) updateRealtimeCaption(event);
           if (event.audio) {
             playRealtimeAudio(event.audio).catch(() => setStatus("语音播放失败，字幕仍可正常显示。", true));
           }
-          if (event.end_of_turn) finishPlaybackTurn();
+          if (event.end_of_turn) {
+            finishPlaybackTurn();
+            voiceResponseActive = false;
+          }
           setStatus("小瀚正在回答，可随时继续说话");
         } else if (event.type === "response.listen") {
           if (event.text || event.transcript) commitVoiceTranscript(event.text || event.transcript);
@@ -642,11 +631,11 @@
           realtimeResponseId = "";
           setStatus("实时语音中，正在聆听");
         } else if (event.type === "response.output.delta" && event.kind === "text") {
-          beginVoiceResponse();
+          beginVoiceResponse(event);
           updateRealtimeCaption(event);
           setStatus("小瀚正在回答，可随时继续说话");
         } else if (event.type === "response.output.delta" && event.kind === "audio") {
-          beginVoiceResponse();
+          beginVoiceResponse(event);
           playRealtimeAudio(event.audio).catch(() => setStatus("语音播放失败，字幕仍可正常显示。", true));
         } else if (event.type === "response.output.delta" && event.kind === "listen") {
           if (event.text || event.transcript) commitVoiceTranscript(event.text || event.transcript);
