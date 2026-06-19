@@ -22,7 +22,6 @@
     ? "https://xinghanshunwei.top/api/chat"
     : "/api/chat";
   const REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=audio";
-  const TRANSCRIBE_REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=chat";
   const INPUT_SAMPLE_RATE = 16000;
   const OUTPUT_SAMPLE_RATE = 24000;
   const PLAYBACK_DELAY_MS = 200;
@@ -46,11 +45,6 @@
   let activeAudioSources = new Set();
   let realtimeBubble = null;
   let realtimeResponseId = "";
-  let voiceTranscriptBubble = null;
-  let lastVoiceTranscript = "";
-  let lastVoiceTranscriptAt = 0;
-  let voiceTurnSamples = [];
-  let voiceTurnSampleCount = 0;
   let voiceResponseActive = false;
   let lastVoiceResponseId = "";
 
@@ -319,145 +313,12 @@
     scrollToBottom();
   };
 
-  const updateVoiceTranscriptBubble = (text) => {
-    const transcript = String(text || "").trim();
-    if (!transcript) return;
-    if (!voiceTranscriptBubble) voiceTranscriptBubble = appendMessage("user", "");
-    let textBlock = voiceTranscriptBubble.querySelector(".chat-message-text");
-    if (!textBlock) {
-      textBlock = document.createElement("div");
-      textBlock.className = "chat-message-text";
-      voiceTranscriptBubble.append(textBlock);
-    }
-    textBlock.textContent = transcript;
-    scrollToBottom();
-  };
-
-  const commitVoiceTranscript = (text) => {
-    const transcript = String(text || "").trim();
-    if (!transcript) return;
-    const now = Date.now();
-    if (transcript === lastVoiceTranscript && now - lastVoiceTranscriptAt < 3000) {
-      const bubbleText = voiceTranscriptBubble?.querySelector(".chat-message-text")?.textContent?.trim();
-      if (bubbleText === transcript) {
-        voiceTranscriptBubble.closest(".chat-message")?.remove();
-        voiceTranscriptBubble = null;
-      }
-      return;
-    }
-    updateVoiceTranscriptBubble(transcript);
-    lastVoiceTranscript = transcript;
-    lastVoiceTranscriptAt = now;
-    voiceTranscriptBubble = null;
-  };
-
-  const encodeVoiceTurnAudio = (chunks, sampleCount) => {
-    const samples = new Float32Array(sampleCount);
-    let offset = 0;
-    for (const chunk of chunks) {
-      samples.set(chunk, offset);
-      offset += chunk.length;
-    }
-    return float32ToBase64(samples);
-  };
-
-  const requestVoiceTranscript = (audio) => new Promise((resolve, reject) => {
-    const socket = new WebSocket(TRANSCRIBE_REALTIME_API_URL);
-    let settled = false;
-    let initSent = false;
-    let inputSent = false;
-    let transcript = "";
-    const timeout = setTimeout(() => finish(new Error("Transcription timed out")), 30000);
-
-    const finish = (error, text = "") => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      try { socket.close(); } catch (_) { /* already closed */ }
-      if (error) reject(error);
-      else resolve(text.trim());
-    };
-    const sendInit = () => {
-      if (initSent || socket.readyState !== WebSocket.OPEN) return;
-      initSent = true;
-      socket.send(JSON.stringify({ type: "session.init", payload: {} }));
-    };
-    const sendInput = () => {
-      if (inputSent || socket.readyState !== WebSocket.OPEN) return;
-      inputSent = true;
-      socket.send(JSON.stringify({
-        type: "input.append",
-        input: {
-          messages: [{
-            role: "user",
-            content: [
-              { type: "audio", data: audio },
-              { type: "text", text: "请准确转写这段用户语音。只输出用户说出的文字，不要解释或回答。" }
-            ]
-          }],
-          streaming: true,
-          generation: { max_new_tokens: 256, length_penalty: 1.0 },
-          omni_mode: false,
-          tts: { enabled: false },
-          use_tts_template: false,
-          enable_thinking: false
-        }
-      }));
-    };
-
-    socket.onopen = () => setTimeout(sendInit, 100);
-    socket.onmessage = (message) => {
-      let event;
-      try { event = JSON.parse(message.data); } catch (_) { return; }
-      if (event.type === "session.queue_done") sendInit();
-      else if (event.type === "session.created") sendInput();
-      else if (event.type === "response.output.delta" && event.kind === "text") {
-        transcript += String(event.text || "");
-      } else if (event.type === "response.done") {
-        finish(null, String(event.text || transcript));
-      } else if (event.type === "error") {
-        finish(new Error(event.error?.message || "Transcription failed"));
-      }
-    };
-    socket.onerror = () => finish(new Error("Transcription connection failed"));
-    socket.onclose = () => {
-      if (!settled) finish(new Error("Transcription connection closed"));
-    };
-  });
-
-  const transcribeVoiceTurn = () => {
-    const chunks = voiceTurnSamples;
-    const sampleCount = voiceTurnSampleCount;
-    voiceTurnSamples = [];
-    voiceTurnSampleCount = 0;
-    if (sampleCount < INPUT_SAMPLE_RATE / 2) return;
-
-    let squareSum = 0;
-    for (const chunk of chunks) {
-      for (let index = 0; index < chunk.length; index += 1) squareSum += chunk[index] * chunk[index];
-    }
-    if (Math.sqrt(squareSum / sampleCount) < 0.003) return;
-
-    const transcriptBubble = appendMessage("user", "正在转写...");
-    requestVoiceTranscript(encodeVoiceTurnAudio(chunks, sampleCount)).then((text) => {
-      const transcript = String(text || "").trim();
-      if (!transcript) throw new Error("Empty transcription");
-      const textBlock = transcriptBubble.querySelector(".chat-message-text");
-      if (textBlock) textBlock.textContent = transcript;
-      lastVoiceTranscript = transcript;
-      lastVoiceTranscriptAt = Date.now();
-    }).catch(() => {
-      const textBlock = transcriptBubble.querySelector(".chat-message-text");
-      if (textBlock) textBlock.textContent = "语音消息（转写暂不可用）";
-    });
-  };
-
   const beginVoiceResponse = (event) => {
     const responseId = String(event?.response_id || "");
     if ((responseId && responseId === lastVoiceResponseId) || (!responseId && voiceResponseActive)) return;
     voiceResponseActive = true;
     if (responseId) lastVoiceResponseId = responseId;
-    transcribeVoiceTurn();
+    appendMessage("user", "语音消息");
   };
 
   const scheduleAudioBuffer = (buffer) => {
@@ -504,11 +365,6 @@
 
   const sendCapturedAudio = (samples) => {
     if (!sessionReady || !voiceSocket || voiceSocket.readyState !== WebSocket.OPEN) return;
-    if (voiceTurnSampleCount < INPUT_SAMPLE_RATE * 20) {
-      const copy = new Float32Array(samples);
-      voiceTurnSamples.push(copy);
-      voiceTurnSampleCount += copy.length;
-    }
     voiceSocket.send(JSON.stringify({
       type: "input.append",
       input: { audio: float32ToBase64(samples) }
@@ -526,7 +382,6 @@
   };
 
   const releaseVoiceResources = () => {
-    voiceTranscriptBubble = null;
     inputProcessor?.port?.postMessage({ command: "stop" });
     inputProcessor?.disconnect();
     inputSource?.disconnect();
@@ -550,8 +405,6 @@
     if (playbackDelayTimer) clearTimeout(playbackDelayTimer);
     playbackDelayTimer = null;
     nextPlaybackTime = 0;
-    voiceTurnSamples = [];
-    voiceTurnSampleCount = 0;
     voiceResponseActive = false;
     lastVoiceResponseId = "";
   };
@@ -662,12 +515,6 @@
           voiceButton.setAttribute("aria-pressed", "true");
           voiceButtonLabel.textContent = "结束对话";
           setStatus("实时语音中，可以慢慢说，停顿一下也没关系");
-        } else if ([
-          "conversation.item.input_audio_transcription.completed",
-          "input_audio_transcription.completed",
-          "response.input_audio_transcription.completed"
-        ].includes(event.type)) {
-          commitVoiceTranscript(event.transcript || event.text);
         } else if (event.type === "response.output_audio.delta") {
           beginVoiceResponse(event);
           if (event.text) updateRealtimeCaption(event);
@@ -680,7 +527,6 @@
           }
           setStatus("小瀚正在回答，可随时继续说话");
         } else if (event.type === "response.listen") {
-          if (event.text || event.transcript) commitVoiceTranscript(event.text || event.transcript);
           finishPlaybackTurn();
           voiceResponseActive = false;
           realtimeBubble = null;
@@ -694,7 +540,6 @@
           beginVoiceResponse(event);
           playRealtimeAudio(event.audio).catch(() => setStatus("语音播放失败，字幕仍可正常显示。", true));
         } else if (event.type === "response.output.delta" && event.kind === "listen") {
-          if (event.text || event.transcript) commitVoiceTranscript(event.text || event.transcript);
           finishPlaybackTurn();
           voiceResponseActive = false;
           realtimeBubble = null;
