@@ -46,7 +46,6 @@
   let activeAudioSources = new Set();
   let realtimeBubble = null;
   let realtimeResponseId = "";
-  let voiceRecognition = null;
   let voiceTranscriptBubble = null;
   let lastVoiceTranscript = "";
   let lastVoiceTranscriptAt = 0;
@@ -348,50 +347,6 @@
     voiceTranscriptBubble = null;
   };
 
-  const startVoiceRecognition = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition || voiceRecognition) return;
-
-    const recognition = new SpeechRecognition();
-    voiceRecognition = recognition;
-    recognition.lang = "zh-CN";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.onresult = (event) => {
-      let interimText = "";
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const transcript = event.results[index][0]?.transcript || "";
-        if (event.results[index].isFinal) commitVoiceTranscript(transcript);
-        else interimText += transcript;
-      }
-      if (interimText) updateVoiceTranscriptBubble(interimText);
-    };
-    recognition.onerror = (event) => {
-      if (["not-allowed", "service-not-allowed"].includes(event.error)) {
-        voiceRecognition = null;
-      }
-    };
-    recognition.onend = () => {
-      if (voiceRecognition !== recognition || !voiceActive || voiceStopping) return;
-      setTimeout(() => {
-        if (voiceRecognition === recognition && voiceActive && !voiceStopping) {
-          try { recognition.start(); } catch (_) { /* already running */ }
-        }
-      }, 250);
-    };
-    try { recognition.start(); } catch (_) { voiceRecognition = null; }
-  };
-
-  const stopVoiceRecognition = () => {
-    const recognition = voiceRecognition;
-    voiceRecognition = null;
-    if (recognition) {
-      recognition.onend = null;
-      try { recognition.abort(); } catch (_) { /* already stopped */ }
-    }
-    voiceTranscriptBubble = null;
-  };
-
   const scheduleQueuedAudio = (flush = false) => {
     if (!outputAudioContext || outputAudioContext.state !== "running" || !playbackQueue.length) return;
 
@@ -451,7 +406,7 @@
   };
 
   const releaseVoiceResources = () => {
-    stopVoiceRecognition();
+    voiceTranscriptBubble = null;
     inputProcessor?.port?.postMessage({ command: "stop" });
     inputProcessor?.disconnect();
     inputSource?.disconnect();
@@ -573,7 +528,6 @@
           voiceButton.setAttribute("aria-pressed", "true");
           voiceButtonLabel.textContent = "结束对话";
           setStatus("实时语音中，可以慢慢说，停顿一下也没关系");
-          startVoiceRecognition();
         } else if ([
           "conversation.item.input_audio_transcription.completed",
           "input_audio_transcription.completed",
