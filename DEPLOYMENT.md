@@ -10,6 +10,8 @@
 
 接口固定使用 Tavily Keyless mode，不读取或使用 `TAVILY_API_KEY`、`WEB_SEARCH_API_KEY`。Keyless 只适合试用和低流量场景，公共额度触发限流后会降级为普通模型回答。
 
+聊天请求默认使用自动模式：只有明确要求联网，或问题涉及最新消息、新闻、天气、价格、行情、政策、比赛结果等时才调用搜索；寒暄、常识和普通咨询直接由模型回答。接口中的 `web_search: true` 可强制搜索，`web_search: false` 可明确关闭搜索。
+
 在 Cloudflare Dashboard 中进入 Pages 项目，然后在 Settings > Environment variables 中分别为 Production 和 Preview 添加变量，重新部署后生效。
 
 本地使用 Wrangler 调试时，可创建不会被 Git 跟踪的 `.dev.vars`：

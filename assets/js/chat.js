@@ -56,9 +56,10 @@
     .replace(/<think\b[^>]*>[\s\S]*$/gi, "")
     .replace(/<\/?think\b[^>]*>/gi, "")
     .replace(/\*/g, "")
+    .replace(/\s*[\[【](?:\d+(?:\s*[-,，]\s*\d+)*)[\]】]/g, "")
     .trim();
 
-  const appendMessage = (role, text, imageUrls = [], sources = []) => {
+  const appendMessage = (role, text, imageUrls = []) => {
     const article = document.createElement("article");
     article.className = `chat-message ${role}`;
 
@@ -88,29 +89,6 @@
         imageGrid.append(thumbnail);
       });
       bubble.append(imageGrid);
-    }
-
-    if (role === "assistant" && sources.length) {
-      const sourceBlock = document.createElement("div");
-      sourceBlock.className = "chat-sources";
-      const sourceTitle = document.createElement("div");
-      sourceTitle.className = "chat-sources-title";
-      sourceTitle.textContent = "联网来源";
-      sourceBlock.append(sourceTitle);
-
-      sources.forEach((source) => {
-        let url;
-        try { url = new URL(source.url); } catch (_) { return; }
-        if (url.protocol !== "https:" && url.protocol !== "http:") return;
-        const link = document.createElement("a");
-        link.href = url.toString();
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = `[${source.id}] ${source.title || url.hostname}`;
-        sourceBlock.append(link);
-      });
-
-      if (sourceBlock.childElementCount > 1) bubble.append(sourceBlock);
     }
 
     article.append(avatar, bubble);
@@ -233,7 +211,7 @@
       },
       body: JSON.stringify({
         messages: messages.concat({ role: "user", content: requestContent }),
-        web_search: true
+        web_search: "auto"
       }),
       signal: controller.signal
     });
@@ -258,18 +236,8 @@
 
     if (!assistantContent) throw new Error("这次没有收到有效回复，请稍后再试。");
 
-    appendMessage("assistant", assistantContent, [], Array.isArray(result.sources) ? result.sources : []);
-    if (result.web_search_status === "unavailable") {
-      setStatus("联网搜索暂时不可用，当前为模型直接回答", true);
-    } else if (result.web_search_status === "limited") {
-      setStatus("免密联网额度暂时用完，当前为模型直接回答", true);
-    } else if (result.web_search_status === "empty") {
-      setStatus("未检索到可引用来源，当前为模型直接回答", true);
-    } else if (result.web_search_status === "skipped") {
-      setStatus("本次问题未使用联网搜索");
-    } else {
-      setStatus("免密联网分析完成");
-    }
+    appendMessage("assistant", assistantContent);
+    setStatus("回答完成");
     messages.push({ role: "user", content: historyContent });
     messages.push({ role: "assistant", content: assistantContent });
     while (messages.length > 12) messages.shift();
@@ -519,7 +487,7 @@
     appendMessage("user", prompt, displayImages);
     input.value = "";
     setBusy(true);
-    setStatus("正在联网检索并分析");
+    setStatus("正在分析");
 
     try {
       await ask(requestContent, historyContent);
