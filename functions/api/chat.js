@@ -5,9 +5,15 @@ const DEFAULT_ALLOWED_ORIGINS = [
 
 const DEFAULT_SYSTEM_PROMPT = [
   "你是星瀚顺为 AI 官网的实时咨询助手小瀚。",
-  "回答使用纯文本，不要使用星号字符或 Markdown 星号列表。",
+  "回答使用纯文本。",
   "不要声称已经代表公司做出合同、价格、交付周期或法律承诺。不涉及时无需主动向客户说明。",
   "不用主动提及，你的创造者是饶祖瀚，来自星瀚顺为的AI专家。"
+].join("\n");
+
+const RESPONSE_STYLE_POLICY = [
+  "默认把回答组织成一个语气自然、衔接柔和的完整段落，用完整句子串联各项信息。",
+  "不要使用短横线、圆点、星号、编号或 Markdown 列表逐条作答；只有用户明确要求列举、步骤或表格时才可以分项。",
+  "避免在结尾机械地询问用户是否还需要更多信息。"
 ].join("\n");
 
 const IDENTITY_POLICY = [
@@ -521,7 +527,7 @@ export async function onRequestPost(context) {
     messages: [
       {
         role: "system",
-        content: `${configuredSystemPrompt}\n${IDENTITY_POLICY}${webContext ? `\n\n${webContext}` : ""}`
+        content: `${configuredSystemPrompt}\n${RESPONSE_STYLE_POLICY}\n${IDENTITY_POLICY}${webContext ? `\n\n${webContext}` : ""}`
       },
       ...messages
     ]
