@@ -31,6 +31,17 @@ const stripThinkingBlocks = (content) => String(content || "")
   .replace(/<think\b[^>]*>[\s\S]*$/gi, "")
   .replace(/<\/?think\b[^>]*>/gi, "");
 
+const sanitizeAssistantContent = (content) => stripThinkingBlocks(content)
+  .replace(/\*/g, "")
+  .replace(/\s*[\[【](?:\d+(?:\s*[-,，]\s*\d+)*)[\]】]/g, "")
+  .trim();
+
+const getCompletionContent = (completion) => completion
+  && completion.choices
+  && completion.choices[0]
+  && completion.choices[0].message
+  && completion.choices[0].message.content;
+
 const MAX_IMAGE_DATA_URL_LENGTH = 2_800_000;
 const MAX_TOTAL_MEDIA_LENGTH = 9_000_000;
 const MAX_IMAGES_PER_REQUEST = 5;
@@ -576,20 +587,33 @@ export async function onRequestPost(context) {
     return json({ error: "MiniCPM API returned invalid JSON" }, 502, headers);
   }
 
-  const rawContent = completion
-    && completion.choices
-    && completion.choices[0]
-    && completion.choices[0].message
-    && completion.choices[0].message.content;
+  let rawContent = getCompletionContent(completion);
 
   if (typeof rawContent !== "string" || !rawContent.trim()) {
     return json({ error: "MiniCPM API returned an empty response" }, 502, headers);
   }
 
-  const sanitizedContent = stripThinkingBlocks(rawContent)
-    .replace(/\*/g, "")
-    .replace(/\s*[\[【](?:\d+(?:\s*[-,，]\s*\d+)*)[\]】]/g, "")
-    .trim();
+  let sanitizedContent = sanitizeAssistantContent(rawContent);
+  if (!sanitizedContent) {
+    await wait(350);
+    try {
+      const retryResponse = await requestMiniCpm(env, miniCpmBody);
+      if (retryResponse.ok) {
+        const retryCompletion = await retryResponse.json();
+        rawContent = getCompletionContent(retryCompletion);
+        sanitizedContent = typeof rawContent === "string"
+          ? sanitizeAssistantContent(rawContent)
+          : "";
+      }
+    } catch (_) {
+      sanitizedContent = "";
+    }
+  }
+
+  if (!sanitizedContent) {
+    return json({ error: "AI 暂时没有生成有效回答，请重新发送一次。" }, 502, headers);
+  }
+
   const content = SENSITIVE_OUTPUT_PATTERN.test(sanitizedContent)
     ? SAFE_IDENTITY_REPLY
     : sanitizedContent;
