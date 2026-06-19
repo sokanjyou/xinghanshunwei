@@ -32,6 +32,8 @@ export async function onRequestOptions({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
+  return json({ error: "This endpoint has been replaced" }, 410);
+
   const origin = getAllowedOrigin(request, env);
   if (!origin) return json({ error: "Forbidden origin" }, 403);
   if (!env.MINICPM_API_KEY) return json({ error: "Missing API key" }, 500, corsHeaders(origin));

@@ -21,10 +21,8 @@
   const CHAT_API_URL = window.location.hostname === "www.xinghanshunwei.top" || isLocalPreview
     ? "https://xinghanshunwei.top/api/chat"
     : "/api/chat";
-  const TRANSCRIBE_API_URL = window.location.hostname === "www.xinghanshunwei.top" || isLocalPreview
-    ? "https://xinghanshunwei.top/api/transcribe"
-    : "/api/transcribe";
   const REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=audio";
+  const TRANSCRIBE_REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=chat";
   const INPUT_SAMPLE_RATE = 16000;
   const OUTPUT_SAMPLE_RATE = 24000;
   const PLAYBACK_DELAY_MS = 200;
@@ -363,6 +361,70 @@
     return float32ToBase64(samples);
   };
 
+  const requestVoiceTranscript = (audio) => new Promise((resolve, reject) => {
+    const socket = new WebSocket(TRANSCRIBE_REALTIME_API_URL);
+    let settled = false;
+    let initSent = false;
+    let inputSent = false;
+    let transcript = "";
+    const timeout = setTimeout(() => finish(new Error("Transcription timed out")), 30000);
+
+    const finish = (error, text = "") => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      try { socket.close(); } catch (_) { /* already closed */ }
+      if (error) reject(error);
+      else resolve(text.trim());
+    };
+    const sendInit = () => {
+      if (initSent || socket.readyState !== WebSocket.OPEN) return;
+      initSent = true;
+      socket.send(JSON.stringify({ type: "session.init", payload: {} }));
+    };
+    const sendInput = () => {
+      if (inputSent || socket.readyState !== WebSocket.OPEN) return;
+      inputSent = true;
+      socket.send(JSON.stringify({
+        type: "input.append",
+        input: {
+          messages: [{
+            role: "user",
+            content: [
+              { type: "audio", data: audio },
+              { type: "text", text: "请准确转写这段用户语音。只输出用户说出的文字，不要解释或回答。" }
+            ]
+          }],
+          streaming: true,
+          generation: { max_new_tokens: 256, length_penalty: 1.0 },
+          omni_mode: false,
+          tts: { enabled: false },
+          use_tts_template: false,
+          enable_thinking: false
+        }
+      }));
+    };
+
+    socket.onopen = () => setTimeout(sendInit, 100);
+    socket.onmessage = (message) => {
+      let event;
+      try { event = JSON.parse(message.data); } catch (_) { return; }
+      if (event.type === "session.queue_done") sendInit();
+      else if (event.type === "session.created") sendInput();
+      else if (event.type === "response.output.delta" && event.kind === "text") {
+        transcript += String(event.text || "");
+      } else if (event.type === "response.done") {
+        finish(null, String(event.text || transcript));
+      } else if (event.type === "error") {
+        finish(new Error(event.error?.message || "Transcription failed"));
+      }
+    };
+    socket.onerror = () => finish(new Error("Transcription connection failed"));
+    socket.onclose = () => {
+      if (!settled) finish(new Error("Transcription connection closed"));
+    };
+  });
+
   const transcribeVoiceTurn = () => {
     const chunks = voiceTurnSamples;
     const sampleCount = voiceTurnSampleCount;
@@ -377,14 +439,8 @@
     if (Math.sqrt(squareSum / sampleCount) < 0.003) return;
 
     const transcriptBubble = appendMessage("user", "正在转写...");
-    fetch(TRANSCRIBE_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ audio: encodeVoiceTurnAudio(chunks, sampleCount) })
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("Transcription failed");
-      const result = await response.json();
-      const transcript = String(result.text || "").trim();
+    requestVoiceTranscript(encodeVoiceTurnAudio(chunks, sampleCount)).then((text) => {
+      const transcript = String(text || "").trim();
       if (!transcript) throw new Error("Empty transcription");
       const textBlock = transcriptBubble.querySelector(".chat-message-text");
       if (textBlock) textBlock.textContent = transcript;
