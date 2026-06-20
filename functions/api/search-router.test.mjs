@@ -6,7 +6,7 @@ import {
   parseClassifierOutput,
   precheckSearch,
   routeSearch,
-  stripSearchCitations
+  sanitizeUserFacingContent
 } from "./search-router.js";
 
 test("freshness and explicit-search phrases bypass the classifier", async () => {
@@ -59,9 +59,16 @@ test("precheck leaves stable knowledge questions to the classifier", () => {
 });
 
 test("search citations never leak into the user-facing answer", () => {
-  assert.equal(stripSearchCitations("结论 [1]，补充【2、3】。"), "结论，补充。");
+  assert.equal(sanitizeUserFacingContent("结论 [1]，补充【2、3】。"), "结论，补充。");
   const context = buildSearchContext({
     results: [{ title: "Example", url: "https://example.com", content: "A result" }]
   });
   assert.equal(context.includes("[1]"), false);
+});
+
+test("sources, URLs, and half-width hyphens are removed from answers", () => {
+  assert.equal(
+    sanitizeUserFacingContent("结论如下\n- 第一项\n来源：https://example.com/a-b"),
+    "结论如下\n第一项"
+  );
 });
