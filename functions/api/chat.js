@@ -1,3 +1,10 @@
+import {
+  buildSearchContext,
+  parseClassifierOutput,
+  routeSearch,
+  searchTavilyKeyless
+} from "./search-router.js";
+
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://xinghanshunwei.top",
   "https://www.xinghanshunwei.top"
@@ -180,6 +187,41 @@ const requestMiniCpm = (env, body) => fetch(getApiUrl(env), {
   body: JSON.stringify(body)
 });
 
+const classifySearchNeed = async (env, messages, text) => {
+  const conversation = messages.slice(-4).map((message) => ({
+    role: message.role,
+    content: getMessageText(message).slice(0, 800)
+  }));
+  const classifierBody = {
+    model: env.SEARCH_ROUTER_MODEL || env.MINICPM_MODEL || "MiniCPM-o-4.5",
+    temperature: 0,
+    max_tokens: 180,
+    messages: [
+      {
+        role: "system",
+        content: [
+          "你是 SearchRouter，只判断回答是否必须访问互联网。只输出一个 JSON 对象，不要解释或输出 Markdown。",
+          `当前日期是 ${new Date().toISOString().slice(0, 10)}。`,
+          "以下情况为 true：用户明确要求搜索；答案依赖当前或近期事实；价格、天气、新闻、比赛、行情、现任人物、最新版本；用户引用了需要打开的网页。",
+          "以下情况为 false：闲聊；写作、翻译、总结已提供内容；数学与稳定知识；不依赖当前信息的编程或分析。",
+          "若为 true，将 search_query 改写为简洁、独立、适合搜索引擎的查询；可用英文提高召回，并保留必要的人名、地点、日期。",
+          "输出格式严格为：{\"needs_search\":true或false,\"search_query\":\"字符串；false 时为空\"}"
+        ].join("\n")
+      },
+      {
+        role: "user",
+        content: JSON.stringify({ current_message: text, recent_conversation: conversation })
+      }
+    ]
+  };
+  const response = await requestMiniCpm(env, classifierBody);
+  if (!response.ok) throw new Error("Search classifier request failed");
+  const completion = await response.json();
+  const content = completion && completion.choices && completion.choices[0]
+    && completion.choices[0].message && completion.choices[0].message.content;
+  return parseClassifierOutput(content, text);
+};
+
 const readMiniCpmError = async (response) => {
   const raw = await response.text();
   try {
@@ -248,11 +290,25 @@ export async function onRequestPost(context) {
   }
 
   const configuredSystemPrompt = env.MINICPM_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT;
+  const latestQuestion = getMessageText(messages[messages.length - 1]).trim();
+  const searchRoute = await routeSearch({
+    text: latestQuestion,
+    messages,
+    forceSearch: typeof payload.web_search === "boolean" ? payload.web_search : undefined,
+    classify: ({ text }) => classifySearchNeed(env, messages, text)
+  });
+  const webSearch = searchRoute.needsSearch
+    ? await searchTavilyKeyless(env, searchRoute.query)
+    : { status: "skipped", results: [] };
+  const searchContext = searchRoute.needsSearch ? buildSearchContext(webSearch) : "";
 
   const miniCpmBody = {
     model: env.MINICPM_MODEL || "MiniCPM-o-4.5",
     messages: [
-      { role: "system", content: `${configuredSystemPrompt}\n${IDENTITY_POLICY}` },
+      {
+        role: "system",
+        content: `${configuredSystemPrompt}\n${IDENTITY_POLICY}${searchContext ? `\n\n${searchContext}` : ""}`
+      },
       ...messages
     ]
   };
@@ -315,7 +371,16 @@ export async function onRequestPost(context) {
     ? SAFE_IDENTITY_REPLY
     : sanitizedContent;
 
-  return json({ content }, 200, {
+  return json({
+    content,
+    web_search: {
+      used: searchRoute.needsSearch && webSearch.status === "ok",
+      status: webSearch.status,
+      reason: searchRoute.reason,
+      query: searchRoute.needsSearch ? searchRoute.query : "",
+      result_count: webSearch.results.length
+    }
+  }, 200, {
     ...headers,
     "Cache-Control": "no-store"
   });
