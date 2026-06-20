@@ -5,7 +5,7 @@ import {
   parseClassifierOutput,
   routeSearch,
   sanitizeUserFacingContent,
-  searchTavilyKeyless,
+  searchTavilyKeyless
 } from "./search-router.js";
 
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -34,6 +34,25 @@ const stripThinkingBlocks = (content) => String(content || "")
   .replace(/<think\b[^>]*>[\s\S]*?<\/think\s*>/gi, "")
   .replace(/<think\b[^>]*>[\s\S]*$/gi, "")
   .replace(/<\/?think\b[^>]*>/gi, "");
+
+const getCompletionContent = (completion) => {
+  const choice = completion && completion.choices && completion.choices[0];
+  const content = choice && choice.message && choice.message.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part.text === "string") return part.text;
+      if (part && typeof part.content === "string") return part.content;
+      return "";
+    }).join("\n");
+  }
+  return choice && typeof choice.text === "string" ? choice.text : "";
+};
+
+const cleanCompletionContent = (content) => sanitizeUserFacingContent(
+  stripThinkingBlocks(content).replace(/\*/g, "")
+);
 
 const MAX_IMAGE_DATA_URL_LENGTH = 2_800_000;
 const MAX_TOTAL_MEDIA_LENGTH = 9_000_000;
@@ -118,6 +137,11 @@ const getMediaLength = (message) => {
     sum + (part.type === "image_url" ? part.image_url.url.length : 0)
   ), 0);
 };
+
+const hasImageContent = (messages) => messages.some((message) => (
+  Array.isArray(message.content)
+  && message.content.some((part) => part && part.type === "image_url")
+));
 
 const getMessageText = (message) => {
   if (!message) return "";
@@ -321,9 +345,12 @@ export async function onRequestPost(context) {
     ? await searchTavilyKeyless(env, searchRoute.query)
     : { status: "skipped", results: [] };
   const searchContext = searchRoute.needsSearch ? buildSearchContext(webSearch) : "";
+  const includesImages = hasImageContent(messages);
 
   const miniCpmBody = {
-    model: env.MINICPM_MODEL || "MiniCPM-o-4.5",
+    model: includesImages
+      ? (env.MINICPM_VISION_MODEL || env.MINICPM_MODEL || "MiniCPM-o-4.5")
+      : (env.MINICPM_MODEL || "MiniCPM-o-4.5"),
     messages: [
       {
         role: "system",
@@ -376,19 +403,40 @@ export async function onRequestPost(context) {
     return json({ error: "MiniCPM API returned invalid JSON" }, 502, headers);
   }
 
-  const rawContent = completion
-    && completion.choices
-    && completion.choices[0]
-    && completion.choices[0].message
-    && completion.choices[0].message.content;
-
-  if (typeof rawContent !== "string" || !rawContent.trim()) {
-    return json({ error: "MiniCPM API returned an empty response" }, 502, headers);
+  let sanitizedContent = cleanCompletionContent(getCompletionContent(completion));
+  if (!sanitizedContent) {
+    const fallbackBody = {
+      ...miniCpmBody,
+      model: includesImages
+        ? (env.MINICPM_VISION_FALLBACK_MODEL || "MiniCPM-V-4.6-Instruct")
+        : miniCpmBody.model,
+      messages: miniCpmBody.messages.map((message, index) => index === 0
+        ? {
+          ...message,
+          content: `${message.content}\n必须输出用户可见的最终回答。不要只输出思考过程；无法识别图片时也要明确说明。`
+        }
+        : message)
+    };
+    try {
+      await wait(250);
+      const fallbackResponse = await requestMiniCpm(env, fallbackBody);
+      if (fallbackResponse.ok) {
+        const fallbackCompletion = await fallbackResponse.json();
+        sanitizedContent = cleanCompletionContent(getCompletionContent(fallbackCompletion));
+      }
+    } catch (_) {
+      sanitizedContent = "";
+    }
   }
 
-  const sanitizedContent = sanitizeUserFacingContent(
-    stripThinkingBlocks(rawContent).replace(/\*/g, "")
-  );
+  if (!sanitizedContent) {
+    return json({
+      error: includesImages
+        ? "图片模型没有生成有效回答，请重新上传图片后再试。"
+        : "AI 没有生成有效回答，请稍后再试。"
+    }, 502, headers);
+  }
+
   const content = SENSITIVE_OUTPUT_PATTERN.test(sanitizedContent)
     ? SAFE_IDENTITY_REPLY
     : sanitizedContent;
