@@ -1622,6 +1622,212 @@ a {
   }
 }
 
+/* Mobile UI is enabled by mobile-nav.js after viewport and device checks. */
+.nav-toggle {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  html.mobile-nav-open {
+    overflow: hidden;
+  }
+
+  html.mobile-ui .site-header {
+    position: sticky;
+    align-items: center;
+    flex-direction: row;
+    min-height: 64px;
+    padding: 12px 6%;
+  }
+
+  html.mobile-ui .site-header .logo {
+    position: relative;
+    z-index: 22;
+    max-width: calc(100% - 60px);
+    overflow: hidden;
+    font-size: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  html.mobile-ui .nav-toggle {
+    position: relative;
+    z-index: 22;
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 44px;
+    height: 44px;
+    margin-left: auto;
+    padding: 0 11px;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.82);
+    color: var(--cyan);
+    cursor: pointer;
+  }
+
+  html.mobile-ui .nav-toggle span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+
+  html.mobile-ui .nav-open .nav-toggle span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  html.mobile-ui .nav-open .nav-toggle span:nth-child(2) {
+    opacity: 0;
+  }
+
+  html.mobile-ui .nav-open .nav-toggle span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  html.mobile-ui .site-header.has-mobile-nav .site-nav {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 21;
+    display: grid;
+    gap: 6px;
+    max-height: 0;
+    padding: 0 6%;
+    overflow: hidden;
+    visibility: hidden;
+    background: rgba(4, 8, 17, 0.98);
+    border-bottom: 1px solid transparent;
+    box-shadow: 0 24px 40px rgba(2, 8, 23, 0.42);
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease, transform 0.2s ease, visibility 0.25s;
+  }
+
+  html.mobile-ui .site-header.has-mobile-nav.nav-open .site-nav {
+    max-height: 360px;
+    padding-top: 10px;
+    padding-bottom: 14px;
+    visibility: visible;
+    border-bottom-color: rgba(125, 211, 252, 0.18);
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  html.mobile-ui .site-header.has-mobile-nav .site-nav a {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 8px;
+  }
+
+  html.mobile-ui .cards,
+  html.mobile-ui .mission-grid,
+  html.mobile-ui .ai-modules,
+  html.mobile-ui .robot-tech-grid,
+  html.mobile-ui .delivery-pipeline,
+  html.mobile-ui .home-flow,
+  html.mobile-ui .join-role-grid,
+  html.mobile-ui .join-flow,
+  html.mobile-ui .trust-flow-board,
+  html.mobile-ui .trust-scene-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html.mobile-ui .card,
+  html.mobile-ui .mission-card,
+  html.mobile-ui .ai-module,
+  html.mobile-ui .robot-tech-card,
+  html.mobile-ui .delivery-node,
+  html.mobile-ui .home-flow-item,
+  html.mobile-ui .join-role-card,
+  html.mobile-ui .join-flow-item,
+  html.mobile-ui .trust-step,
+  html.mobile-ui .trust-scene-card {
+    min-height: 0;
+  }
+
+  html.mobile-ui .chat-page {
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  html.mobile-ui .chat-page .site-header {
+    height: 64px;
+  }
+
+  html.mobile-ui .chat-page .chat-shell,
+  html.mobile-ui .chat-page .chat-hero {
+    height: calc(100dvh - 64px);
+    min-height: 0;
+  }
+
+  html.mobile-ui .chat-page .chat-hero {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  html.mobile-ui .chat-page .chat-copy,
+  html.mobile-ui .chat-page > .site-footer {
+    display: none;
+  }
+
+  html.mobile-ui .chat-page .chat-console {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  html.mobile-ui .chat-page .chat-status {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+
+  html.mobile-ui .chat-page .chat-log {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  html.mobile-ui .chat-page .chat-form {
+    gap: 8px;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+  }
+
+  html.mobile-ui .chat-page .chat-form textarea {
+    min-height: 54px;
+    max-height: 96px;
+    padding: 10px 12px;
+    resize: none;
+  }
+
+  html.mobile-ui .chat-page .chat-attachment {
+    width: 72px;
+    height: 72px;
+  }
+
+  html.mobile-ui .chat-page .chat-actions,
+  html.mobile-ui .chat-page .chat-tools,
+  html.mobile-ui .chat-page .chat-submit-actions {
+    gap: 8px;
+  }
+
+  html.mobile-ui .chat-page .chat-tool,
+  html.mobile-ui .chat-page .chat-actions .btn {
+    min-height: 42px;
+  }
+}
+
 .home-page {
   background:
     radial-gradient(circle at 14% 10%, rgba(56, 189, 248, 0.14), transparent 30%),
