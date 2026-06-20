@@ -2,7 +2,7 @@ const MAX_QUERY_LENGTH = 400;
 const MAX_RESULTS = 5;
 
 const EXPLICIT_SEARCH_PATTERN = /(?:联网|上网|互联网|网络)(?:搜索|查询|检索|查找|查一下)?|(?:搜索|搜一下|查询|检索|查找|查一下|帮我查)(?:网络|互联网|网页|资料|信息|新闻|消息)?|\b(?:search|look up|browse|check online|web search)\b/i;
-const FRESHNESS_PATTERN = /(?:今天|今日|现在|目前|当前|最新|实时|刚刚|刚才|近期|最近|本周|本月|今年|新闻|热搜|天气|气温|降雨|台风|价格|报价|汇率|股价|行情|金价|油价|比分|赛程|积分榜|库存|在售|营业时间|财报|政策|法规|安全漏洞|现任|发布了吗|更新了吗)|\b(?:today|latest|current|currently|recent|real[- ]?time|breaking|weather|price|score|schedule|stock|exchange rate)\b/i;
+const FRESHNESS_PATTERN = /(?:今天|今日|现在|目前|当前|最新|实时|刚刚|刚才|近期|最近|本周|本月|今年|几点|几点钟|几时|几号|几月几日|星期几|周几|哪一年|什么年份|几几年|当前时间|准确时间|当前日期|准确日期|新闻|热搜|天气|气温|降雨|台风|价格|报价|汇率|股价|行情|金价|油价|比分|赛程|积分榜|库存|在售|营业时间|财报|政策|法规|安全漏洞|现任|发布了吗|更新了吗)|\b(?:today|what time|what date|day of (?:the )?week|what year|latest|current|currently|recent|real[- ]?time|breaking|weather|price|score|schedule|stock|exchange rate)\b/i;
 const RECENT_YEAR_PATTERN = /(?:^|\D)20(?:2[5-9]|[3-9]\d)(?:\D|$)/;
 const CASUAL_PATTERN = /^(?:你?好|您好|嗨|哈喽|hello|hi|hey|早上好|早安|中午好|下午好|晚上好|晚安|谢谢|多谢|感谢|再见|拜拜|没事了|好的|好|嗯|哦|在吗)[!！。.，,？?\s]*$/i;
 

@@ -16,7 +16,16 @@ test("freshness and explicit-search phrases bypass the classifier", async () => 
     return { needsSearch: false, query: "" };
   };
 
-  for (const text of ["比特币现在多少钱", "今天东京天气", "帮我上网查一下量子计算新闻", "2025 年的新政策"]) {
+  for (const text of [
+    "比特币现在多少钱",
+    "今天东京天气",
+    "帮我上网查一下量子计算新闻",
+    "2025 年的新政策",
+    "现在几点了",
+    "今天是几月几日",
+    "今天星期几",
+    "今年是哪一年"
+  ]) {
     const route = await routeSearch({ text, messages: [], classify });
     assert.equal(route.needsSearch, true, text);
   }
