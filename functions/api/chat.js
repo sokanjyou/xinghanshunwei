@@ -2,7 +2,8 @@ import {
   buildSearchContext,
   parseClassifierOutput,
   routeSearch,
-  searchTavilyKeyless
+  searchTavilyKeyless,
+  stripSearchCitations
 } from "./search-router.js";
 
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -366,7 +367,9 @@ export async function onRequestPost(context) {
     return json({ error: "MiniCPM API returned an empty response" }, 502, headers);
   }
 
-  const sanitizedContent = stripThinkingBlocks(rawContent).replace(/\*/g, "").trim();
+  const sanitizedContent = stripSearchCitations(
+    stripThinkingBlocks(rawContent).replace(/\*/g, "")
+  );
   const content = SENSITIVE_OUTPUT_PATTERN.test(sanitizedContent)
     ? SAFE_IDENTITY_REPLY
     : sanitizedContent;

@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseClassifierOutput, precheckSearch, routeSearch } from "./search-router.js";
+import {
+  buildSearchContext,
+  parseClassifierOutput,
+  precheckSearch,
+  routeSearch,
+  stripSearchCitations
+} from "./search-router.js";
 
 test("freshness and explicit-search phrases bypass the classifier", async () => {
   let classifierCalls = 0;
@@ -50,4 +56,12 @@ test("classifier JSON parser accepts fenced output and rejects missing decisions
 
 test("precheck leaves stable knowledge questions to the classifier", () => {
   assert.equal(precheckSearch("解释一下什么是傅里叶变换").decision, null);
+});
+
+test("search citations never leak into the user-facing answer", () => {
+  assert.equal(stripSearchCitations("结论 [1]，补充【2、3】。"), "结论，补充。");
+  const context = buildSearchContext({
+    results: [{ title: "Example", url: "https://example.com", content: "A result" }]
+  });
+  assert.equal(context.includes("[1]"), false);
 });
