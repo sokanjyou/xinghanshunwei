@@ -1,0 +1,27 @@
+127.0.0.1 - - [19/Jun/2026 05:41:20] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:41:20] "GET /assets/js/chat.js?v=minicpm-v4.6-6 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:41:30] "POST /api/chat HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:41:44] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:44:46] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:44:46] "GET /assets/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:44:46] "GET /assets/js/chat.js?v=minicpm-v4.6-6 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:44:46] "GET /assets/images/hero-ai-network.png HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:44:46] code 404, message File not found
+127.0.0.1 - - [19/Jun/2026 05:44:46] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [19/Jun/2026 05:44:49] "POST /api/chat HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:50:43] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 05:50:43] "GET /assets/css/style.css HTTP/1.1" 304 -
+127.0.0.1 - - [19/Jun/2026 05:50:43] "GET /assets/js/chat.js?v=minicpm-v4.6-7 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:04:14] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:04:14] "GET /assets/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:04:14] "GET /assets/js/chat.js?v=minicpm-v4.6-8 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:11:46] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:11:46] "GET /assets/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:11:46] "GET /assets/js/chat.js?v=minicpm-v4.6-9 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:17:15] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:17:15] "GET /assets/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:17:15] "GET /assets/js/chat.js?v=minicpm-v4.6-10 HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:36:16] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:37:20] "GET /chat/ HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:37:20] "GET /assets/css/style.css HTTP/1.1" 200 -
+127.0.0.1 - - [19/Jun/2026 06:37:20] "GET /assets/js/chat.js?v=minicpm-o4.5-realtime-1 HTTP/1.1" 200 -

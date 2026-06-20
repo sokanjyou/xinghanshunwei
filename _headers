@@ -1,0 +1,3 @@
+/chat/*
+  Permissions-Policy: microphone=(self)
+  Cache-Control: no-cache
