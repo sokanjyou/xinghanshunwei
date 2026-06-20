@@ -85,6 +85,8 @@ test("sources, URLs, and half-width hyphens are removed from answers", () => {
 
 test("current time questions and corrections use deterministic time handling", () => {
   assert.equal(getCurrentTimeIntent("今天是几月几日", []), "direct");
+  assert.equal(getCurrentTimeIntent("现在是几月几日", []), "direct");
+  assert.equal(getCurrentTimeIntent("当前是什么日期", []), "direct");
   assert.equal(getCurrentTimeIntent("现在几点了", []), "direct");
   assert.equal(getCurrentTimeIntent("不对", [
     { role: "assistant", content: "今天是2026年6月17日。" }
