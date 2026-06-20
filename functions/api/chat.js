@@ -276,7 +276,7 @@ export async function onRequestPost(context) {
   }
 
   if (!env.MINICPM_API_KEY) {
-    return json({ error: "Missing MINICPM_API_KEY secret" }, 500, headers);
+    return json({ error: "AI 服务暂时不可用，请稍后再试。" }, 500, headers);
   }
 
   const rate = await enforceRateLimit(request, env);
@@ -385,7 +385,7 @@ export async function onRequestPost(context) {
       lastStatus = upstream.status || 502;
       lastError = await readMiniCpmError(upstream);
       if (!retryableStatuses.has(lastStatus)) {
-        return json({ error: lastError }, lastStatus, headers);
+        return json({ error: "AI 服务暂时不可用，请稍后再试。" }, lastStatus, headers);
       }
     }
 
@@ -400,7 +400,7 @@ export async function onRequestPost(context) {
   try {
     completion = await upstream.json();
   } catch (_) {
-    return json({ error: "MiniCPM API returned invalid JSON" }, 502, headers);
+    return json({ error: "AI 服务返回异常，请稍后再试。" }, 502, headers);
   }
 
   let sanitizedContent = cleanCompletionContent(getCompletionContent(completion));

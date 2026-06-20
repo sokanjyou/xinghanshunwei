@@ -41,12 +41,19 @@
   let realtimeBubble = null;
   let realtimeResponseId = "";
 
+  const PUBLIC_MODEL_NAME_PATTERN = /(?:MiniCPM(?:-[\w.]+)?|ModelBest|OpenBMB|GPT(?:-[\w.]+)?|Claude(?:\s+[\w.]+)?|Gemini(?:\s+[\w.]+)?|Qwen(?:[\s-][\w.]+)?|Llama(?:[\s-][\w.]+)?|DeepSeek(?:[\s-][\w.]+)?)/gi;
+
+  const sanitizePublicText = (text) => String(text || "")
+    .replace(PUBLIC_MODEL_NAME_PATTERN, "AI 助手")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
   const scrollToBottom = () => {
     log.scrollTop = log.scrollHeight;
   };
 
   const setStatus = (text, isError) => {
-    status.textContent = text;
+    status.textContent = sanitizePublicText(text);
     status.classList.toggle("is-error", Boolean(isError));
   };
 
@@ -55,6 +62,8 @@
     .replace(/<think\b[^>]*>[\s\S]*$/gi, "")
     .replace(/<\/?think\b[^>]*>/gi, "")
     .replace(/\*/g, "")
+    .replace(PUBLIC_MODEL_NAME_PATTERN, "AI 助手")
+    .replace(/\s{2,}/g, " ")
     .trim();
 
   const appendMessage = (role, text, imageUrls = []) => {
@@ -372,7 +381,7 @@
     voiceButton.disabled = true;
     voiceButton.classList.add("is-requesting");
     voiceButtonLabel.textContent = "正在连接";
-    setStatus("正在连接 MiniCPM-o 实时语音");
+    setStatus("正在连接实时语音服务");
 
     try {
       voiceStream = await navigator.mediaDevices.getUserMedia({
@@ -435,8 +444,7 @@
           realtimeResponseId = "";
           setStatus("实时语音中，正在聆听");
         } else if (event.type === "error") {
-          const detail = event.error?.message || "实时语音服务暂时不可用";
-          setStatus(detail, true);
+          setStatus("实时语音服务暂时不可用，请稍后重试。", true);
           stopVoiceConversation(false);
         }
       };
