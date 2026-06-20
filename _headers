@@ -1,5 +1,0 @@
-/*
-  Cache-Control: public, max-age=0, must-revalidate
-
-/chat/*
-  Permissions-Policy: microphone=(self)
