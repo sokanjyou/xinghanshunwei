@@ -1,5 +1,7 @@
 import {
   buildSearchContext,
+  getCurrentTimeIntent,
+  getVerifiedCurrentTime,
   parseClassifierOutput,
   routeSearch,
   sanitizeUserFacingContent,
@@ -292,6 +294,23 @@ export async function onRequestPost(context) {
 
   const configuredSystemPrompt = env.MINICPM_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT;
   const latestQuestion = getMessageText(messages[messages.length - 1]).trim();
+  const timeIntent = getCurrentTimeIntent(latestQuestion, messages);
+  if (timeIntent !== "none") {
+    const verifiedTime = await getVerifiedCurrentTime(env, latestQuestion);
+    return json({
+      content: sanitizeUserFacingContent(verifiedTime.content),
+      web_search: {
+        used: true,
+        status: "ok",
+        reason: "verified_time",
+        query: "",
+        result_count: 1
+      }
+    }, 200, {
+      ...headers,
+      "Cache-Control": "no-store"
+    });
+  }
   const searchRoute = await routeSearch({
     text: latestQuestion,
     messages,

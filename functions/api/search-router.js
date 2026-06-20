@@ -5,6 +5,10 @@ const EXPLICIT_SEARCH_PATTERN = /(?:联网|上网|互联网|网络)(?:搜索|查
 const FRESHNESS_PATTERN = /(?:今天|今日|现在|目前|当前|最新|实时|刚刚|刚才|近期|最近|本周|本月|今年|几点|几点钟|几时|几号|几月几日|星期几|周几|哪一年|什么年份|几几年|当前时间|准确时间|当前日期|准确日期|新闻|热搜|天气|气温|降雨|台风|价格|报价|汇率|股价|行情|金价|油价|比分|赛程|积分榜|库存|在售|营业时间|财报|政策|法规|安全漏洞|现任|发布了吗|更新了吗)|\b(?:today|what time|what date|day of (?:the )?week|what year|latest|current|currently|recent|real[- ]?time|breaking|weather|price|score|schedule|stock|exchange rate)\b/i;
 const RECENT_YEAR_PATTERN = /(?:^|\D)20(?:2[5-9]|[3-9]\d)(?:\D|$)/;
 const CASUAL_PATTERN = /^(?:你?好|您好|嗨|哈喽|hello|hi|hey|早上好|早安|中午好|下午好|晚上好|晚安|谢谢|多谢|感谢|再见|拜拜|没事了|好的|好|嗯|哦|在吗)[!！。.，,？?\s]*$/i;
+const CURRENT_TIME_PATTERN = /(?:现在|当前)?\s*(?:是)?\s*(?:几点|几点钟|几时)|今天\s*(?:是)?\s*(?:几月几日|几号|星期几|周几)|(?:现在|今年)\s*(?:是)?\s*(?:哪一年|什么年份|几几年)|\b(?:what time is it|what(?:'s| is) (?:the )?date|what day is it|what year is it)\b/i;
+const TIME_CORRECTION_PATTERN = /^(?:不对|错了|日期不对|时间不对|你说错了|不是这个日期|不是今天)[!！。.，,？?\s]*$/;
+const DATE_IN_ANSWER_PATTERN = /\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}\s*时\s*\d{1,2}\s*分/;
+const WEEKDAYS = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
 
 export const precheckSearch = (input) => {
   const text = String(input || "").trim();
@@ -15,6 +19,18 @@ export const precheckSearch = (input) => {
     return { decision: true, reason: "freshness_keyword" };
   }
   return { decision: null, reason: "uncertain" };
+};
+
+export const getCurrentTimeIntent = (text, messages = []) => {
+  const cleanText = String(text || "").trim();
+  if (CURRENT_TIME_PATTERN.test(cleanText)) return "direct";
+  if (!TIME_CORRECTION_PATTERN.test(cleanText)) return "none";
+
+  const previousAssistant = [...messages].reverse().find((message) => message && message.role === "assistant");
+  const previousText = previousAssistant && typeof previousAssistant.content === "string"
+    ? previousAssistant.content
+    : "";
+  return DATE_IN_ANSWER_PATTERN.test(previousText) ? "correction" : "none";
 };
 
 export const parseClassifierOutput = (content, fallbackQuery) => {
@@ -83,6 +99,81 @@ const fetchWithTimeout = async (url, options, timeoutMs) => {
   } finally {
     clearTimeout(timeout);
   }
+};
+
+const getTimeParts = (date, timeZone) => {
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const localDate = new Date(`${values.year}-${String(values.month).padStart(2, "0")}-${String(values.day).padStart(2, "0")}T00:00:00Z`);
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+    dayOfWeek: WEEKDAYS[localDate.getUTCDay()]
+  };
+};
+
+const getRequestedTimePart = (question) => {
+  if (/(?:几点|几点钟|几时|what time)/i.test(question)) return "time";
+  if (/(?:星期几|周几|what day)/i.test(question)) return "weekday";
+  if (/(?:哪一年|什么年份|几几年|what year)/i.test(question)) return "year";
+  return "date";
+};
+
+export const getVerifiedCurrentTime = async (env, question) => {
+  const timeZone = env.DEFAULT_TIME_ZONE || "Asia/Shanghai";
+  const timeZoneLabel = env.DEFAULT_TIME_ZONE_LABEL
+    || (timeZone === "Asia/Shanghai" ? "北京时间" : `${timeZone}时间`);
+  const endpoint = env.TIME_API_URL
+    || `https://timeapi.io/api/time/current/zone?timeZone=${encodeURIComponent(timeZone)}`;
+  let parts;
+  let verification = "edge_clock";
+
+  try {
+    const response = await fetchWithTimeout(endpoint, {
+      headers: { "Accept": "application/json" }
+    }, 4000);
+    if (!response.ok) throw new Error("Time API request failed");
+    const body = await response.json();
+    if (![body.year, body.month, body.day, body.hour, body.minute].every(Number.isFinite)) {
+      throw new Error("Time API returned invalid data");
+    }
+    const date = new Date(Date.UTC(body.year, body.month - 1, body.day));
+    parts = {
+      year: body.year,
+      month: body.month,
+      day: body.day,
+      hour: body.hour,
+      minute: body.minute,
+      dayOfWeek: WEEKDAYS[date.getUTCDay()]
+    };
+    verification = "time_api";
+  } catch (_) {
+    parts = getTimeParts(new Date(), timeZone);
+  }
+
+  const requestedPart = getRequestedTimePart(String(question || ""));
+  let content;
+  if (requestedPart === "time") {
+    content = `当前${timeZoneLabel}是${parts.year}年${parts.month}月${parts.day}日${parts.hour}时${String(parts.minute).padStart(2, "0")}分，${parts.dayOfWeek}。`;
+  } else if (requestedPart === "weekday") {
+    content = `今天是${parts.year}年${parts.month}月${parts.day}日，${parts.dayOfWeek}。`;
+  } else if (requestedPart === "year") {
+    content = `今年是${parts.year}年。`;
+  } else {
+    content = `今天是${parts.year}年${parts.month}月${parts.day}日，${parts.dayOfWeek}。`;
+  }
+  return { content, verification, timeZone };
 };
 
 const normalizeResult = (result) => {

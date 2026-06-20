@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildSearchContext,
+  getCurrentTimeIntent,
   parseClassifierOutput,
   precheckSearch,
   routeSearch,
@@ -80,4 +81,15 @@ test("sources, URLs, and half-width hyphens are removed from answers", () => {
     sanitizeUserFacingContent("结论如下\n- 第一项\n来源：https://example.com/a-b"),
     "结论如下\n第一项"
   );
+});
+
+test("current time questions and corrections use deterministic time handling", () => {
+  assert.equal(getCurrentTimeIntent("今天是几月几日", []), "direct");
+  assert.equal(getCurrentTimeIntent("现在几点了", []), "direct");
+  assert.equal(getCurrentTimeIntent("不对", [
+    { role: "assistant", content: "今天是2026年6月17日。" }
+  ]), "correction");
+  assert.equal(getCurrentTimeIntent("不对", [
+    { role: "assistant", content: "量子计算是一种计算范式。" }
+  ]), "none");
 });
