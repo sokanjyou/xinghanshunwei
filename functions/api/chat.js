@@ -214,6 +214,13 @@ const requestMiniCpm = (env, body) => fetch(getApiUrl(env), {
   body: JSON.stringify(body)
 });
 
+const getFallbackModel = (env, includesImages, currentModel) => {
+  const fallback = includesImages
+    ? (env.MINICPM_VISION_FALLBACK_MODEL || "MiniCPM-V-4.6-Instruct")
+    : (env.MINICPM_FALLBACK_MODEL || "MiniCPM-V-4.6-Instruct");
+  return fallback && fallback !== currentModel ? fallback : "";
+};
+
 const classifySearchNeed = async (env, messages, text) => {
   const conversation = messages.slice(-4).map((message) => ({
     role: message.role,
@@ -389,7 +396,13 @@ export async function onRequestPost(context) {
       }
     }
 
-    if (attempt === 0) await wait(500 + Math.floor(Math.random() * 350));
+    if (attempt === 0) {
+      const fallbackModel = lastStatus !== 429
+        ? getFallbackModel(env, includesImages, miniCpmBody.model)
+        : "";
+      if (fallbackModel) miniCpmBody.model = fallbackModel;
+      await wait(500 + Math.floor(Math.random() * 350));
+    }
   }
 
   if (!upstream || !upstream.ok) {

@@ -49,3 +49,33 @@ test("image requests retry with the vision fallback when thinking cleanup is emp
     globalThis.fetch = originalFetch;
   }
 });
+
+test("retryable upstream failures switch to the fallback text model", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    const body = JSON.parse(options.body);
+    calls.push({ url: String(url), body });
+    if (calls.length === 1) {
+      return Response.json({ error: { message: "model busy" } }, { status: 503 });
+    }
+    return Response.json({
+      choices: [{ message: { content: "你好，我可以继续为你服务。" } }]
+    });
+  };
+
+  try {
+    const response = await onRequestPost({
+      request: makeRequest("你好"),
+      env: { MINICPM_API_KEY: "test", RATE_LIMIT_PER_MINUTE: "0" }
+    });
+    const result = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(result.content, "你好，我可以继续为你服务。");
+    assert.equal(calls[0].body.model, "MiniCPM-o-4.5");
+    assert.equal(calls[1].body.model, "MiniCPM-V-4.6-Instruct");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
