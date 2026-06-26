@@ -17,9 +17,7 @@
   const messages = [];
   const attachments = [];
   const MAX_IMAGES = 5;
-  const CHAT_API_URL = window.location.hostname === "www.xinghanshunwei.top"
-    ? "https://xinghanshunwei.top/api/chat"
-    : "/api/chat";
+  const CHAT_API_URL = "/api/chat";
   const REALTIME_API_URL = "wss://minicpmo45.modelbest.cn/v1/realtime?mode=audio";
   const INPUT_SAMPLE_RATE = 16000;
   const OUTPUT_SAMPLE_RATE = 24000;
